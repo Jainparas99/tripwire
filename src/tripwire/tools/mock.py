@@ -115,20 +115,14 @@ class MockToolRegistry:
                 return {"customer_id": str(ticket["customer_id"])}
         return {}
 
-    def honeytoken_touched(self, call: ToolCall, honeytokens: tuple[str, ...]) -> bool:
-        if not honeytokens:
-            return False
-
-        serialized_arguments = str(call.arguments)
-        if any(token in serialized_arguments for token in honeytokens):
-            return True
-
-        if call.tool == "read_ticket" and isinstance(call.arguments.get("ticket_id"), str):
-            ticket = TICKETS.get(call.arguments["ticket_id"])
-            if ticket is not None:
-                serialized_ticket = str(ticket)
-                return any(token in serialized_ticket for token in honeytokens)
-        return False
+    def preview(self, call: ToolCall) -> str:
+        if call.tool == "read_ticket":
+            ticket = TICKETS.get(str(call.arguments.get("ticket_id")))
+            return str(ticket) if ticket is not None else ""
+        if call.tool == "read_customer":
+            customer = CUSTOMERS.get(str(call.arguments.get("customer_id")))
+            return str(customer) if customer is not None else ""
+        return ""
 
     def run(self, call: ToolCall) -> dict[str, Any]:
         self.call_counts[call.tool] += 1

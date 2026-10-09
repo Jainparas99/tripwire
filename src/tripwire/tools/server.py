@@ -48,11 +48,9 @@ def make_server(
                     call = ToolCall.model_validate(payload)
                     _write_json(self, 200, {"scope": registry.resource_scope(call)})
                     return
-                if self.path == "/tools/honeytoken-touched":
-                    call = ToolCall.model_validate(payload["call"])
-                    honeytokens = tuple(str(token) for token in payload.get("honeytokens", []))
-                    touched = registry.honeytoken_touched(call, honeytokens)
-                    _write_json(self, 200, {"touched": touched})
+                if self.path == "/tools/preview":
+                    call = ToolCall.model_validate(payload)
+                    _write_json(self, 200, {"preview": registry.preview(call)})
                     return
                 if self.path == "/tools/call":
                     call = ToolCall.model_validate(payload)

@@ -8,6 +8,7 @@ from tripwire.contracts.destinations import destination_allowed, extract_destina
 from tripwire.contracts.models import TaskContract, ToolCall
 from tripwire.detection import analyze_call, containment_for_score
 from tripwire.gateway.models import ContainmentState, Decision, DecisionAction, GatewayResult
+from tripwire.tools.base import ToolRegistry
 from tripwire.tools.mock import MockToolRegistry
 
 MALFORMED_TOOL = "<malformed>"
@@ -21,12 +22,12 @@ class TripwireGateway:
         *,
         contract: TaskContract,
         audit_log: AuditLog,
-        tools: MockToolRegistry | None = None,
+        tools: ToolRegistry | None = None,
         session_id: str = "sess_01",
     ) -> None:
         self._contract = contract
         self._audit_log = audit_log
-        self._tools = tools or MockToolRegistry()
+        self._tools: ToolRegistry = tools or MockToolRegistry()
         self._session_id = session_id
         self._seq = 0
         self._score = 0

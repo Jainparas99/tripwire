@@ -10,7 +10,7 @@ from tripwire.contracts.destinations import (
 )
 from tripwire.contracts.models import TaskContract, ToolCall
 from tripwire.gateway.models import ContainmentState
-from tripwire.tools.mock import MockToolRegistry
+from tripwire.tools.base import ToolRegistry
 
 DEFAULT_WEIGHTS: dict[str, int] = {
     "CUSTOMER_SCOPE_VIOLATION": 3,
@@ -40,13 +40,13 @@ def analyze_call(
     *,
     call: ToolCall,
     contract: TaskContract,
-    tools: MockToolRegistry,
+    tools: ToolRegistry,
     history: list[AuditEvent],
     policy_reason_codes: tuple[str, ...],
 ) -> list[DetectorFinding]:
     findings = [_finding(reason) for reason in policy_reason_codes if reason in DEFAULT_WEIGHTS]
 
-    if tools.honeytoken_touched(call, contract.honeytokens):
+    if _honeytoken_touched(call, contract, tools):
         findings.append(_finding("HONEYTOKEN_TOUCH"))
 
     retry_evidence = _retry_after_denial(call, contract, tools, history)
@@ -85,10 +85,20 @@ def _finding(reason_code: str, evidence_event_ids: tuple[str, ...] = ()) -> Dete
     )
 
 
+def _honeytoken_touched(call: ToolCall, contract: TaskContract, tools: ToolRegistry) -> bool:
+    """Match honeytokens in the gateway; the token list never leaves the gateway."""
+    if not contract.honeytokens:
+        return False
+    haystacks = [str(call.arguments)]
+    if tools.has_tool(call.tool):
+        haystacks.append(tools.preview(call))
+    return any(token in haystack for token in contract.honeytokens for haystack in haystacks)
+
+
 def _retry_after_denial(
     call: ToolCall,
     contract: TaskContract,
-    tools: MockToolRegistry,
+    tools: ToolRegistry,
     history: list[AuditEvent],
 ) -> tuple[str, ...]:
     targets = _out_of_contract_targets(call, contract, tools)
@@ -144,7 +154,7 @@ def _read_then_send(
 def _out_of_contract_targets(
     call: ToolCall,
     contract: TaskContract,
-    tools: MockToolRegistry,
+    tools: ToolRegistry,
 ) -> set[str]:
     """Targets the contract forbids: other customers, disallowed hosts, disallowed tools."""
     targets: set[str] = set()

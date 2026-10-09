@@ -28,12 +28,9 @@ class HttpToolRegistry:
         scope = response.get("scope", {})
         return {str(key): str(value) for key, value in scope.items()}
 
-    def honeytoken_touched(self, call: ToolCall, honeytokens: tuple[str, ...]) -> bool:
-        response = self._post(
-            "/tools/honeytoken-touched",
-            {"call": call.model_dump(mode="json"), "honeytokens": list(honeytokens)},
-        )
-        return bool(response["touched"])
+    def preview(self, call: ToolCall) -> str:
+        response = self._post("/tools/preview", call.model_dump(mode="json"))
+        return str(response.get("preview", ""))
 
     def run(self, call: ToolCall) -> dict[str, Any]:
         self.call_counts[call.tool] = self.call_counts.get(call.tool, 0) + 1
