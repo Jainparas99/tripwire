@@ -57,6 +57,7 @@ class TaskContract(BaseModel):
     def canonical_bytes(self, *, include_signature: bool = False) -> bytes:
         """Return the stable bytes used for hashing and optional signing."""
         payload = self.model_dump(mode="json")
+        payload["allowed_tools"] = sorted(payload["allowed_tools"])
         if not include_signature:
             payload.pop("signature", None)
         return json.dumps(payload, sort_keys=True, separators=(",", ":")).encode("utf-8")

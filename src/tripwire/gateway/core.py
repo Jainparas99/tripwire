@@ -4,7 +4,7 @@ from threading import RLock
 from typing import Any
 
 from tripwire.audit.log import AuditLog
-from tripwire.contracts.destinations import destination_allowed, extract_destination
+from tripwire.contracts.destinations import destination_allowed, extract_destinations
 from tripwire.contracts.models import TaskContract, ToolCall
 from tripwire.detection import analyze_call, containment_for_score
 from tripwire.gateway.models import ContainmentState, Decision, DecisionAction, GatewayResult
@@ -217,12 +217,10 @@ class TripwireGateway:
         return None
 
     def _destination_violation(self, call: ToolCall) -> str | None:
-        destination = extract_destination(call.arguments)
-        if destination is None:
-            return None
-        if destination_allowed(destination, self._contract.allowed_destinations):
-            return None
-        return "DESTINATION_NOT_ALLOWED"
+        for destination in extract_destinations(call.arguments):
+            if not destination_allowed(destination, self._contract.allowed_destinations):
+                return "DESTINATION_NOT_ALLOWED"
+        return None
 
 
 def _source_resource(call: ToolCall) -> str | None:

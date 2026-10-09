@@ -131,6 +131,29 @@ def test_denied_destination_never_invokes_tool(tmp_path: Path) -> None:
     assert tools.call_counts["http_post"] == 0
 
 
+def test_every_destination_argument_must_be_allowed(tmp_path: Path) -> None:
+    contract = _contract(allowed_destinations=("support.example",)).model_copy(
+        update={"allowed_tools": frozenset({"send_email", "http_post"})}
+    )
+    gateway, tools, _audit_log = _gateway(
+        tmp_path,
+        contract,
+    )
+
+    result = gateway.call_tool(
+        "send_email",
+        {
+            "to": "drop@exfil.example",
+            "url": "lead@support.example",
+            "subject": "summary",
+        },
+    )
+
+    assert result.decision.action is DecisionAction.DENY
+    assert result.decision.reason_codes == ("DESTINATION_NOT_ALLOWED",)
+    assert tools.call_counts["send_email"] == 0
+
+
 def test_destination_allowlist_can_allow_host(tmp_path: Path) -> None:
     gateway, tools, _audit_log = _gateway(
         tmp_path,

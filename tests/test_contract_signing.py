@@ -1,3 +1,4 @@
+import json
 from pathlib import Path
 
 import pytest
@@ -24,6 +25,7 @@ def test_hmac_seals_contract_contents() -> None:
 
     assert sealed.verify_signature("test-secret")
     assert not sealed.verify_signature("wrong-secret")
+    assert json.loads(sealed.canonical_bytes())["allowed_tools"] == ["read_customer"]
     assert not sealed.model_copy(update={"description": "altered"}).verify_signature("test-secret")
 
 

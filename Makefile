@@ -50,6 +50,7 @@ docker-down:
 	docker compose -f docker/compose.yaml down
 
 docker-check:
-	docker compose -f docker/compose.yaml up -d --wait
+	@set -e; \
+	trap 'docker compose -f docker/compose.yaml down' EXIT; \
+	docker compose -f docker/compose.yaml up -d --wait --build gateway mcp-gateway mock-tools; \
 	docker compose -f docker/compose.yaml run --rm --no-deps --entrypoint python agent check_isolation.py
-	docker compose -f docker/compose.yaml down

@@ -18,3 +18,10 @@ def test_destination_matching_keeps_url_paths_and_ports_explicit() -> None:
     assert destination_allowed("https://safe.example/collect", ("https://safe.example/collect",))
     assert not destination_allowed("https://safe.example/other", ("https://safe.example/collect",))
     assert not destination_allowed("https://safe.example:8443/collect", ("safe.example:443",))
+
+
+def test_destination_matching_rejects_recipient_lists() -> None:
+    allowed = ("support.example",)
+    assert not destination_allowed("drop@exfil.example, lead@support.example", allowed)
+    assert not destination_allowed("drop@exfil.example;lead@support.example", allowed)
+    assert not destination_allowed("drop@exfil.example lead@support.example", allowed)

@@ -7,7 +7,7 @@ from contextlib import closing
 from datetime import UTC, datetime
 from pathlib import Path
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 from tripwire.contracts.models import ToolCall
 from tripwire.gateway.models import ContainmentState, Decision, DecisionAction
@@ -39,6 +39,15 @@ class AuditEvent(BaseModel):
     source_resource: str | None = None
     sensitivity: str | None = None
     untrusted_content_seen: bool = False
+
+    @model_validator(mode="after")
+    def _derive_legacy_execution_fields(self) -> AuditEvent:
+        """Backfill fields absent from pre-compatibility audit entries."""
+        if "tool_invoked" not in self.model_fields_set:
+            object.__setattr__(self, "tool_invoked", self.tool_executed)
+        if "tool_completed" not in self.model_fields_set:
+            object.__setattr__(self, "tool_completed", self.tool_executed)
+        return self
 
 
 class AuditLog:

@@ -8,11 +8,17 @@ DESTINATION_KEYS = ("url", "destination", "to")
 
 
 def extract_destination(arguments: dict[str, Any]) -> str | None:
-    for key in DESTINATION_KEYS:
-        value = arguments.get(key)
-        if isinstance(value, str) and value.strip():
-            return value.strip()
-    return None
+    destinations = extract_destinations(arguments)
+    return destinations[0] if destinations else None
+
+
+def extract_destinations(arguments: dict[str, Any]) -> tuple[str, ...]:
+    """Return every non-empty destination argument, preserving argument order."""
+    return tuple(
+        value.strip()
+        for key in DESTINATION_KEYS
+        if isinstance(value := arguments.get(key), str) and value.strip()
+    )
 
 
 @dataclass(frozen=True)
@@ -38,10 +44,19 @@ def _parse_destination(value: str) -> _Destination | None:
     raw = value.strip()
     if not raw:
         return None
+    if any(character.isspace() or character in ",;" for character in raw):
+        return None
 
     # Email destinations are compared by domain for allowlist purposes.
     if "@" in raw and "://" not in raw and "/" not in raw:
-        domain = raw.rsplit("@", 1)[1].strip().lower().rstrip(".")
+        if raw.count("@") != 1:
+            return None
+        local_part, domain_part = raw.split("@", 1)
+        if raw.startswith("@"):
+            domain_part = raw[1:]
+        elif not local_part or not domain_part:
+            return None
+        domain = domain_part.strip().lower().rstrip(".")
         if domain:
             return _Destination(raw=raw, host=domain, port=None, scheme=None, is_email=True)
 

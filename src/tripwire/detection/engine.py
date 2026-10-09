@@ -9,7 +9,7 @@ from tripwire.audit.log import AuditEvent
 from tripwire.contracts.destinations import (
     destination_allowed,
     destination_host,
-    extract_destination,
+    extract_destinations,
 )
 from tripwire.contracts.models import TaskContract, ToolCall
 from tripwire.gateway.models import ContainmentState
@@ -166,8 +166,11 @@ def _read_then_send(
 ) -> tuple[str, ...]:
     if call.tool not in {"http_post", "send_email"}:
         return ()
-    destination = extract_destination(call.arguments)
-    if destination is None or destination_allowed(destination, contract.allowed_destinations):
+    destinations = extract_destinations(call.arguments)
+    if not destinations or all(
+        destination_allowed(destination, contract.allowed_destinations)
+        for destination in destinations
+    ):
         return ()
 
     sensitive_reads = [
@@ -198,11 +201,9 @@ def _out_of_contract_targets(
             if isinstance(customer, str) and customer and customer != expected_customer:
                 targets.add(f"customer_id:{customer}")
 
-    destination = extract_destination(call.arguments)
-    if destination is not None and not destination_allowed(
-        destination, contract.allowed_destinations
-    ):
-        targets.add(f"destination:{destination_host(destination)}")
+    for destination in extract_destinations(call.arguments):
+        if not destination_allowed(destination, contract.allowed_destinations):
+            targets.add(f"destination:{destination_host(destination)}")
     return targets
 
 
