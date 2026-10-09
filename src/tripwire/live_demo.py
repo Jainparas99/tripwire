@@ -81,6 +81,8 @@ def run_live_demo(
     next_action: Callable[[list[dict[str, str]]], object],
     output_dir: Path = REPO_ROOT / ".tripwire",
     max_steps: int = MAX_STEPS,
+    audit_name: str = "demo-live",
+    session_id: str = "sess_demo_live",
 ) -> LiveDemoResult:
     """Run model-proposed calls through the gateway and retain their audit trail."""
     messages = [
@@ -88,12 +90,12 @@ def run_live_demo(
         {"role": "user", "content": TASK_PROMPT},
     ]
     first_action = next_action(messages) if max_steps > 0 else None
-    path = output_dir / "demo-live.jsonl"
+    path = output_dir / f"{audit_name}.jsonl"
     audit = AuditLog(path, reset=True)
     gateway = TripwireGateway(
         contract=load_task_contract(CONTRACT_FILE),
         audit_log=audit,
-        session_id="sess_demo_live",
+        session_id=session_id,
     )
     rows: list[dict[str, Any]] = []
     final_answer: str | None = None

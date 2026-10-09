@@ -1,4 +1,4 @@
-.PHONY: setup test lint eval evidence demo live-demo investigate audit-index tools gateway mcp dashboard docker-build docker-up docker-down docker-check
+.PHONY: setup test lint eval evidence demo live-demo model-gauntlet investigate audit-index tools gateway mcp dashboard docker-build docker-up docker-down docker-check
 
 setup:
 	uv sync
@@ -21,6 +21,9 @@ demo:
 
 live-demo:
 	PYTHONPATH=src uv run python -m tripwire.demo --mode live
+
+model-gauntlet:
+	PYTHONPATH=src uv run python -m tripwire.model_gauntlet
 
 investigate:
 	PYTHONPATH=src uv run python -m tripwire.investigation.cli .tripwire/demo-*.jsonl
