@@ -32,6 +32,8 @@ class IncidentReport(BaseModel):
     # Free-text prose from a model. It is never verified, so it is kept apart from the
     # deterministic summary and shown as unverified.
     model_narrative: str | None = None
+    # Why the verifier rejected earlier model reports, when this report is the fallback.
+    verifier_rejections: tuple[str, ...] = Field(default_factory=tuple)
     stage_labels: tuple[str, ...] = Field(default_factory=tuple)
     timeline: tuple[str, ...] = Field(default_factory=tuple)
     claims: tuple[Claim, ...] = Field(default_factory=tuple)

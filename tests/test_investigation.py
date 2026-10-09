@@ -336,3 +336,14 @@ def test_template_summary_names_first_flag_and_containment(tmp_path: Path) -> No
     assert "ended KILLED after 6 call(s); 4 denied, 0 tool(s) ran while blocked" in summary
     assert "First flagged at evt_000003: run_shell (UNKNOWN_TOOL)" in summary
     assert "Contained at evt_000004: http_post moved the session to KILLED" in summary
+
+
+def test_stages_follow_the_attack_and_name_post_containment_attempts(tmp_path: Path) -> None:
+    from tripwire.demo import replay_scenario
+
+    replay_scenario("escape", output_dir=tmp_path)
+    events = AuditLog(tmp_path / "demo-escape.jsonl").read_events()
+
+    stages = build_template_report(events).stage_labels
+
+    assert stages == ("execution_attempt", "escape_attempt", "attempts_after_containment")

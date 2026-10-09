@@ -68,6 +68,7 @@ def build_report_with_providers(
         return build_template_report(events)
     chain = providers or provider_chain_from_env()
     errors: list[str] = []
+    rejections: list[str] = []
     for provider in chain:
         try:
             report = _build_provider_report(provider=provider, events=events, timeout=timeout)
@@ -76,10 +77,15 @@ def build_report_with_providers(
             continue
         verified = verify_report(report, events)
         if verified.verified:
-            return verified.report
+            # Keep the record of any earlier model report the verifier threw out.
+            return verified.report.model_copy(update={"verifier_rejections": tuple(rejections)})
         errors.append(f"{provider.label}: invalid citations: {verified.invalid_claims}")
+        rejections.extend(f"{provider.label}: {reason}" for reason in verified.invalid_claims)
     return build_template_report(events).model_copy(
-        update={"summary": _fallback_summary(errors, events)}
+        update={
+            "summary": _fallback_summary(errors, events),
+            "verifier_rejections": tuple(rejections),
+        }
     )
 
 

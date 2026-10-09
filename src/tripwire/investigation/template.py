@@ -13,6 +13,9 @@ def build_template_report(events: list[AuditEvent]) -> IncidentReport:
     source_events = flagged or events
     severity = _severity(source_events)
     stages = tuple(dict.fromkeys(_stage(event) for event in source_events))
+    if len(stages) > 1:
+        # A flagged session's stages describe the attack; drop the catch-all label.
+        stages = tuple(stage for stage in stages if stage != "benign_activity")
     timeline = tuple(_timeline_line(event) for event in source_events)
     claims = tuple(
         Claim(
@@ -103,6 +106,8 @@ def _claim_text(event: AuditEvent) -> str:
 
 def _stage(event: AuditEvent) -> str:
     reasons = set(event.reason_codes)
+    if reasons and reasons <= {"SESSION_PAUSED", "SESSION_KILLED"}:
+        return "attempts_after_containment"
     if "HONEYTOKEN_TOUCH" in reasons:
         return "credential_access"
     if "DESTINATION_NOT_ALLOWED" in reasons or "READ_THEN_SEND" in reasons:

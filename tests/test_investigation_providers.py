@@ -117,3 +117,24 @@ def test_ollama_report_requests_incident_schema(tmp_path: Path, monkeypatch) -> 
 
     assert report.generator == "ollama:qwen2.5:3b-instruct"
     assert seen[0]["format"]["properties"]["timeline"]["items"]["type"] == "string"
+
+
+def test_rejected_model_report_is_recorded_on_the_fallback(tmp_path: Path, monkeypatch) -> None:
+    from tripwire.investigation import providers as provider_module
+    from tripwire.investigation.template import build_template_report
+
+    events = _events(tmp_path)
+    lying = build_template_report(events).model_copy(update={"generator": "ollama:liar"})
+    lying = lying.model_copy(
+        update={"claims": tuple(c.model_copy(update={"tool_invoked": True}) for c in lying.claims)}
+    )
+    monkeypatch.setattr(provider_module, "build_ollama_report", lambda **_kwargs: lying)
+
+    report = build_report_with_providers(
+        events=events,
+        providers=(ProviderSpec(kind="ollama", model="liar"), ProviderSpec(kind="template")),
+    )
+
+    assert report.generator == "template"
+    assert report.verifier_rejections
+    assert report.verifier_rejections[0].startswith("ollama:liar: claim 1 says tool_invoked=True")
