@@ -65,7 +65,7 @@ def main() -> None:
         "Synthetic fixtures and local evaluation artifacts are shown read-only."
     )
 
-    logs = _audit_logs()
+    logs = _audit_logs() or _bootstrap_demo_logs()
     _header_strip(logs)
 
     live, incident, gauntlet, remediation, redteam, fleet, sponsors = st.tabs(
@@ -1190,6 +1190,19 @@ def _audit_logs() -> list[Path]:
         return []
     rank = {stem: index for index, stem in enumerate(LOG_ORDER)}
     return sorted(logs, key=lambda path: (rank.get(path.stem, len(rank)), path.stem))
+
+
+@st.cache_resource
+def _bootstrap_demo_logs() -> list[Path]:
+    """Replay the offline demo when no logs exist (e.g. a fresh hosted deploy)."""
+    from tripwire import demo
+
+    try:
+        for name in demo.load_scenarios():
+            demo.replay_scenario(name, output_dir=LOG_DIR)
+    except (OSError, RuntimeError):
+        return []
+    return _audit_logs()
 
 
 def _read_events(path: Path) -> list[AuditEvent]:
