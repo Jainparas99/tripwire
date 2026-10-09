@@ -17,7 +17,7 @@ demo:
 	PYTHONPATH=src uv run python -m tripwire.demo
 
 investigate:
-	PYTHONPATH=src uv run python -m tripwire.investigation.cli .tripwire/demo-audit.jsonl
+	PYTHONPATH=src uv run python -m tripwire.investigation.cli .tripwire/demo-*.jsonl
 
 tools:
 	PYTHONPATH=src uv run python -m tripwire.tools.server --host 127.0.0.1 --port 9090
