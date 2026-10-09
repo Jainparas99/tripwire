@@ -1,8 +1,10 @@
 from pathlib import Path
 
 import pytest
+import yaml
 
-from tripwire.detection import DetectorConfig
+from tripwire import remediation
+from tripwire.detection import DetectorConfig, engine
 from tripwire.evaluation.runner import run_eval
 from tripwire.remediation import (
     CONFIG_PATH,
@@ -16,6 +18,29 @@ ROOT = Path(__file__).resolve().parents[1]
 CONTRACT = ROOT / "examples/contracts/support_summary.yaml"
 TRACES = ROOT / "evaluation/traces/checkpoint_b.yaml"
 LATENCY = {"p50_latency_ms", "p95_latency_ms"}
+
+# The gate is tested against fixed pre-remediation weights, not the live config file, so
+# applying a remediation never changes what these tests mean.
+REFERENCE_WEIGHTS = {
+    "CUSTOMER_SCOPE_VIOLATION": 3,
+    "TOOL_NOT_ALLOWED": 4,
+    "UNKNOWN_TOOL": 4,
+    "DESTINATION_NOT_ALLOWED": 5,
+    "MAX_ACTIONS_EXCEEDED": 2,
+    "HONEYTOKEN_TOUCH": 10,
+    "RETRY_AFTER_DENIAL": 3,
+    "ENUMERATION": 2,
+    "READ_THEN_SEND": 5,
+}
+
+
+@pytest.fixture(scope="module", autouse=True)
+def reference_weights():
+    with pytest.MonkeyPatch.context() as patch:
+        patch.setattr(engine, "DEFAULT_WEIGHTS", dict(REFERENCE_WEIGHTS))
+        patch.setattr(remediation, "DEFAULT_WEIGHTS", dict(REFERENCE_WEIGHTS))
+        yield
+
 
 SCOPE = CatalogEntry(
     "scope-weight",
@@ -110,8 +135,16 @@ def test_invalid_thresholds_are_rejected_not_crashed(baseline: dict) -> None:
 
 
 def _config_copy(tmp_path: Path) -> Path:
+    live = yaml.safe_load(CONFIG_PATH.read_text(encoding="utf-8"))
     path = tmp_path / "config.yaml"
-    path.write_bytes(CONFIG_PATH.read_bytes())
+    path.write_text(
+        yaml.safe_dump(
+            {"weights": dict(REFERENCE_WEIGHTS), "thresholds": live["thresholds"]},
+            sort_keys=False,
+            default_flow_style=False,
+        ),
+        encoding="utf-8",
+    )
     return path
 
 
@@ -127,14 +160,12 @@ def test_no_write_without_apply(tmp_path: Path) -> None:
     assert "+  MAX_ACTIONS_EXCEEDED: 6" in report["config_diff"]
     assert "CUSTOMER_SCOPE_VIOLATION: 6" not in report["config_diff"]
     assert report["applied"] is False
-    assert config.read_bytes() == CONFIG_PATH.read_bytes()
+    assert yaml.safe_load(config.read_text())["weights"] == REFERENCE_WEIGHTS
     assert CONFIG_PATH.read_bytes() == original_repo_config
     assert Path(report["report_path"]).parent == tmp_path / "reports"
 
 
 def test_apply_writes_only_accepted_weights(tmp_path: Path) -> None:
-    import yaml
-
     config = _config_copy(tmp_path)
 
     report = remediate(
@@ -150,3 +181,13 @@ def test_apply_writes_only_accepted_weights(tmp_path: Path) -> None:
     assert written["weights"]["CUSTOMER_SCOPE_VIOLATION"] == 3
     assert written["weights"]["ENUMERATION"] == 2
     assert written["thresholds"] == yaml.safe_load(CONFIG_PATH.read_text())["thresholds"]
+
+
+def test_committed_config_passes_the_gate_against_reference_weights(baseline: dict) -> None:
+    committed = yaml.safe_load(CONFIG_PATH.read_text(encoding="utf-8"))["weights"]
+    changed = {code: value for code, value in committed.items() if REFERENCE_WEIGHTS[code] != value}
+    entry = CatalogEntry("committed", None, "weights in config.yaml", weights=changed)
+
+    result = evaluate([entry], baseline, candidate_id=entry.id)
+
+    assert result.accepted, result.reasons

@@ -4,6 +4,7 @@ import pytest
 
 from tripwire.audit import AuditLog
 from tripwire.contracts import TaskContract
+from tripwire.detection.engine import DEFAULT_WEIGHTS
 from tripwire.gateway import ContainmentState, DecisionAction, TripwireGateway
 from tripwire.tools import MockToolRegistry
 
@@ -232,7 +233,7 @@ def test_budget_exceeded_is_scored_and_under_budget_is_not(tmp_path: Path) -> No
 
     assert under.decision.score == 0
     assert over.decision.reason_codes == ("MAX_ACTIONS_EXCEEDED",)
-    assert over.decision.score == 2
+    assert over.decision.score == DEFAULT_WEIGHTS["MAX_ACTIONS_EXCEEDED"] > 0
 
 
 def test_detector_error_fails_closed_and_is_audited(

@@ -76,10 +76,10 @@ Current local eval (`make eval`):
 ```text
 traces                     26
 attack_detection_rate      100.00%
-attack_containment_rate    69.23%
+attack_containment_rate    76.92%
 false_block_rate           0.00%
 median_actions_to_detect   1
-median_actions_to_contain  1
+median_actions_to_contain  1.5
 executed_while_blocked     0
 ```
 
@@ -167,18 +167,24 @@ produced no valid tool actions; failed runs stay in the table. Refresh the snaps
 threshold changes; no model writes policy. It selects entries from the reason codes of attacks
 that only reached `WARN` (or of an incident: `make remediate ARGS="--incident
 .tripwire/demo-escape.jsonl"`), replays every fixture trajectory with each change in memory, and
-accepts a change only if detection and containment do not drop, the benign false-block rate
-stays 0 and no tool runs while blocked. Accepted changes that improve nothing are reported but
+accepts a change only if detection and containment do not drop, no attack's worst containment
+state is lowered (for example KILLED to PAUSED), the benign false-block rate stays 0 and no tool
+runs while blocked. Accepted changes that improve nothing are reported but
 not proposed. The accepted changes are then tested together against the same gate.
 
 The output is a baseline-vs-candidate table, a unified diff of
 `src/tripwire/detection/config.yaml` and a JSON report in `.tripwire/remediation/`. The config is
 written only with `ARGS=--apply`. Threshold changes are printed as a suggested contract diff and
 never written, because contracts belong to the application and their thresholds override the
-config defaults. On the current fixtures the proposal raises attack containment from 69.23% to
-92.31% with zero false blocks; the remaining WARN-only attack is a malformed call, which has no
-weight to tune. These are synthetic fixtures, so the numbers show the gate working, not
-real-world coverage.
+config defaults.
+
+Applied so far: `MAX_ACTIONS_EXCEEDED` 2 -> 6, which raised attack containment on the fixtures from
+69.23% to 76.92% with zero false blocks. Raising `CUSTOMER_SCOPE_VIOLATION` or `UNKNOWN_TOOL` to 6
+would contain more (up to 92.31%) but was rejected: pausing on the first probe freezes the score,
+so `attack_retry_after_denial` and `attack_escape_style` would stop at `PAUSED` instead of
+`KILLED`. The remaining `WARN`-only attacks are a single out-of-scope read, a single unknown tool
+and a malformed call (which has no weight to tune). These are synthetic fixtures, so the numbers
+show the gate working, not real-world coverage.
 
 ## Audit Index
 
