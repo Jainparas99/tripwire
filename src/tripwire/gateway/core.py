@@ -36,6 +36,10 @@ class TripwireGateway:
         self._lock = RLock()
 
     @property
+    def contract(self) -> TaskContract:
+        return self._contract
+
+    @property
     def seq(self) -> int:
         return self._seq
 

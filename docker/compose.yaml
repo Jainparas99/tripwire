@@ -33,6 +33,23 @@ services:
     depends_on:
       - mock-tools
 
+  mcp-gateway:
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile
+    command: ["tripwire-mcp", "--transport", "http", "--host", "0.0.0.0", "--port", "8081"]
+    environment:
+      TRIPWIRE_CONTRACT: "examples/contracts/support_summary.yaml"
+      TRIPWIRE_AUDIT_LOG: "/data/mcp-audit.jsonl"
+      TRIPWIRE_TOOL_BASE_URL: "http://mock-tools:9090"
+    volumes:
+      - ../.tripwire:/data
+    networks:
+      - agent_internal
+      - tools_only
+    depends_on:
+      - mock-tools
+
   mock-tools:
     build:
       context: ..

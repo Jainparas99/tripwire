@@ -144,3 +144,20 @@ def test_non_json_http_body_is_audited(tmp_path: Path) -> None:
     events = gateway._audit_log.read_events()
     assert [event.reason_codes for event in events] == [("MALFORMED_REQUEST",)]
     assert gateway._audit_log.verify_chain()
+
+
+def test_json_rpc_accepts_mcp_style_name_param(tmp_path: Path) -> None:
+    gateway, tools = _gateway(tmp_path)
+
+    result = handle_json_rpc(
+        gateway,
+        {
+            "jsonrpc": "2.0",
+            "id": 2,
+            "method": "tools/call",
+            "params": {"name": "read_customer", "arguments": {"customer_id": "A"}},
+        },
+    )
+
+    assert result["result"]["decision"]["action"] == "ALLOW"
+    assert tools.call_counts["read_customer"] == 1

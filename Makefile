@@ -1,4 +1,4 @@
-.PHONY: setup test lint eval demo investigate tools gateway dashboard docker-build docker-up docker-down
+.PHONY: setup test lint eval demo investigate tools gateway mcp dashboard docker-build docker-up docker-down
 
 setup:
 	uv sync
@@ -24,6 +24,9 @@ tools:
 
 gateway:
 	PYTHONPATH=src TRIPWIRE_TOOL_BASE_URL=http://127.0.0.1:9090 uv run python -m tripwire.proxy.server --host 127.0.0.1 --port 8080
+
+mcp:
+	PYTHONPATH=src TRIPWIRE_TOOL_BASE_URL=http://127.0.0.1:9090 uv run python -m tripwire.proxy.mcp_server --transport http --host 127.0.0.1 --port 8081
 
 dashboard:
 	PYTHONPATH=src uv run streamlit run dashboard/app.py

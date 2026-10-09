@@ -31,6 +31,9 @@ def handle_json_rpc(gateway: TripwireGateway, payload: dict[str, Any]) -> dict[s
     if not isinstance(params, dict):
         gateway.reject_malformed(payload)
         return _error(request_id, -32602, "params must be an object")
+    if "tool" not in params and "name" in params:
+        # MCP names the tool `name`; the plain /tool-call body names it `tool`.
+        params = {"tool": params["name"], "arguments": params.get("arguments", {})}
     return {"jsonrpc": "2.0", "id": request_id, "result": handle_tool_call(gateway, params)}
 
 

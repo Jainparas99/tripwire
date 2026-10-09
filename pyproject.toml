@@ -6,6 +6,7 @@ readme = "README.md"
 requires-python = ">=3.12"
 license = { text = "MIT" }
 dependencies = [
+  "mcp>=1.10",
   "pydantic>=2.9",
   "pyyaml>=6.0",
 ]
@@ -25,6 +26,7 @@ default-groups = ["dev", "dashboard"]
 [project.scripts]
 tripwire-demo = "tripwire.demo:main"
 tripwire-gateway = "tripwire.proxy.server:main"
+tripwire-mcp = "tripwire.proxy.mcp_server:main"
 tripwire-investigate = "tripwire.investigation.cli:main"
 tripwire-tools = "tripwire.tools.server:main"
 
