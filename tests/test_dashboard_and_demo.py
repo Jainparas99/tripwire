@@ -68,3 +68,29 @@ def test_dashboard_gauntlet_tab_reads_committed_snapshot(
     rendered = gauntlet.table[0].value
     assert list(rendered["Model"]) == [row["model"] for row in snapshot["results"]]
     assert "not an autonomous red team" in " ".join(caption.value for caption in gauntlet.caption)
+
+
+def test_dashboard_demo_fixes(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    streamlit_testing = pytest.importorskip("streamlit.testing.v1")
+    for name in load_scenarios():
+        replay_scenario(name, output_dir=tmp_path)
+    (tmp_path / "remediation").mkdir()
+    (tmp_path / "remediation" / "remediation-test.json").write_text(
+        '{"baseline": {"attack_containment_rate": 0.69}, "candidates": [], "proposal": []}',
+        encoding="utf-8",
+    )
+    monkeypatch.setenv("TRIPWIRE_LOG_DIR", str(tmp_path))
+
+    app = streamlit_testing.AppTest.from_file(str(DASHBOARD), default_timeout=30).run()
+    assert not app.exception
+
+    on_screen = " ".join(
+        [caption.value for caption in app.caption] + [markdown.value for markdown in app.markdown]
+    )
+    assert str(Path.home()) not in on_screen, "no local home path in screenshots"
+    assert "Before · baseline" in on_screen
+
+    notes = list(app.tabs[2].table[0].value["Note"])
+    assert "did not encounter the injection (made no tool calls)" in notes
+
+    assert app.selectbox(key="report_session").value.stem == "demo-escape"

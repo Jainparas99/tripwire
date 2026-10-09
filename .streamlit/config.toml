@@ -1,0 +1,3 @@
+# Red means KILLED on this dashboard, so Streamlit's accent (slider, radio, pills) is blue.
+[theme]
+primaryColor = "#3a74e0"
