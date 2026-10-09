@@ -1,9 +1,9 @@
 from __future__ import annotations
 
 from typing import Any
-from urllib.parse import urlparse
 
 from tripwire.audit.log import AuditLog
+from tripwire.contracts.destinations import destination_allowed, extract_destination
 from tripwire.contracts.models import TaskContract, ToolCall
 from tripwire.detection import analyze_call, containment_for_score
 from tripwire.gateway.models import ContainmentState, Decision, DecisionAction, GatewayResult
@@ -67,13 +67,20 @@ class TripwireGateway:
         except Exception:
             policy_reason_codes.append("AUTHORIZATION_ERROR")
 
-        findings = analyze_call(
-            call=call,
-            contract=self._contract,
-            tools=self._tools,
-            history=self._audit_log.read_events(),
-            policy_reason_codes=tuple(policy_reason_codes),
-        )
+        try:
+            findings = analyze_call(
+                call=call,
+                contract=self._contract,
+                tools=self._tools,
+                history=self._audit_log.read_events(),
+                policy_reason_codes=tuple(policy_reason_codes),
+            )
+        except Exception:
+            return Decision.deny(
+                *dict.fromkeys([*policy_reason_codes, "DETECTOR_ERROR"]),
+                containment_state=self._containment_state,
+                score=self._score,
+            )
         finding_reason_codes = [item.reason_code for item in findings]
         reason_codes = tuple(dict.fromkeys(policy_reason_codes + finding_reason_codes))
         evidence_event_ids = tuple(
@@ -148,28 +155,9 @@ class TripwireGateway:
         return None
 
     def _destination_violation(self, call: ToolCall) -> str | None:
-        destination = _extract_destination(call.arguments)
+        destination = extract_destination(call.arguments)
         if destination is None:
             return None
-
-        allowed = set(self._contract.allowed_destinations)
-        if not allowed:
-            return "DESTINATION_NOT_ALLOWED"
-
-        host = _destination_host(destination)
-        if destination in allowed or host in allowed:
+        if destination_allowed(destination, self._contract.allowed_destinations):
             return None
         return "DESTINATION_NOT_ALLOWED"
-
-
-def _extract_destination(arguments: dict[str, Any]) -> str | None:
-    for key in ("url", "destination", "to"):
-        value = arguments.get(key)
-        if isinstance(value, str) and value.strip():
-            return value.strip()
-    return None
-
-
-def _destination_host(destination: str) -> str:
-    parsed = urlparse(destination)
-    return parsed.netloc or destination.split("@")[-1]

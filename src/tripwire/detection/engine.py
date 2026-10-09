@@ -3,6 +3,11 @@ from __future__ import annotations
 from dataclasses import dataclass
 
 from tripwire.audit.log import AuditEvent
+from tripwire.contracts.destinations import (
+    destination_allowed,
+    destination_host,
+    extract_destination,
+)
 from tripwire.contracts.models import TaskContract, ToolCall
 from tripwire.gateway.models import ContainmentState
 from tripwire.tools.mock import MockToolRegistry
@@ -10,6 +15,7 @@ from tripwire.tools.mock import MockToolRegistry
 DEFAULT_WEIGHTS: dict[str, int] = {
     "CUSTOMER_SCOPE_VIOLATION": 3,
     "TOOL_NOT_ALLOWED": 4,
+    "UNKNOWN_TOOL": 4,
     "DESTINATION_NOT_ALLOWED": 5,
     "MAX_ACTIONS_EXCEEDED": 2,
     "HONEYTOKEN_TOUCH": 10,
@@ -43,7 +49,7 @@ def analyze_call(
     if tools.honeytoken_touched(call, contract.honeytokens):
         findings.append(_finding("HONEYTOKEN_TOUCH"))
 
-    retry_evidence = _retry_after_denial(call, history)
+    retry_evidence = _retry_after_denial(call, contract, tools, history)
     if retry_evidence:
         findings.append(_finding("RETRY_AFTER_DENIAL", retry_evidence))
 
@@ -51,7 +57,7 @@ def analyze_call(
     if enumeration_evidence:
         findings.append(_finding("ENUMERATION", enumeration_evidence))
 
-    read_send_evidence = _read_then_send(call, history)
+    read_send_evidence = _read_then_send(call, contract, history)
     if read_send_evidence:
         findings.append(_finding("READ_THEN_SEND", read_send_evidence))
 
@@ -79,15 +85,20 @@ def _finding(reason_code: str, evidence_event_ids: tuple[str, ...] = ()) -> Dete
     )
 
 
-def _retry_after_denial(call: ToolCall, history: list[AuditEvent]) -> tuple[str, ...]:
-    targets = _targets(call)
+def _retry_after_denial(
+    call: ToolCall,
+    contract: TaskContract,
+    tools: MockToolRegistry,
+    history: list[AuditEvent],
+) -> tuple[str, ...]:
+    targets = _out_of_contract_targets(call, contract, tools)
     if not targets:
         return ()
 
     for event in reversed(history[-RETRY_WINDOW:]):
         if event.decision != "DENY":
             continue
-        if targets & _targets(event.attempted) and event.attempted != call:
+        if targets & _out_of_contract_targets(event.attempted, contract, tools):
             return (event.event_id,)
     return ()
 
@@ -111,8 +122,15 @@ def _enumeration(call: ToolCall, history: list[AuditEvent]) -> tuple[str, ...]:
     return ()
 
 
-def _read_then_send(call: ToolCall, history: list[AuditEvent]) -> tuple[str, ...]:
+def _read_then_send(
+    call: ToolCall,
+    contract: TaskContract,
+    history: list[AuditEvent],
+) -> tuple[str, ...]:
     if call.tool not in {"http_post", "send_email"}:
+        return ()
+    destination = extract_destination(call.arguments)
+    if destination is None or destination_allowed(destination, contract.allowed_destinations):
         return ()
 
     sensitive_reads = [
@@ -123,23 +141,31 @@ def _read_then_send(call: ToolCall, history: list[AuditEvent]) -> tuple[str, ...
     return tuple(event.event_id for event in sensitive_reads[-2:])
 
 
-def _target(call: ToolCall) -> str | None:
-    targets = _targets(call)
-    if targets:
-        return sorted(targets)[0]
-    return None
-
-
-def _targets(call: ToolCall) -> set[str]:
+def _out_of_contract_targets(
+    call: ToolCall,
+    contract: TaskContract,
+    tools: MockToolRegistry,
+) -> set[str]:
+    """Targets the contract forbids: other customers, disallowed hosts, disallowed tools."""
     targets: set[str] = set()
-    for key in ("ticket_id", "customer_id"):
-        value = call.arguments.get(key)
-        if isinstance(value, str) and value:
-            targets.add(f"{key}:{value}")
-    for key in ("url", "destination", "to"):
-        value = call.arguments.get(key)
-        if isinstance(value, str) and value:
-            targets.add(value)
+    if call.tool not in contract.allowed_tools:
+        targets.add(f"tool:{call.tool}")
+
+    expected_customer = contract.scope.get("customer_id")
+    if expected_customer is not None:
+        customers = {
+            call.arguments.get("customer_id"),
+            tools.resource_scope(call).get("customer_id"),
+        }
+        for customer in customers:
+            if isinstance(customer, str) and customer and customer != expected_customer:
+                targets.add(f"customer_id:{customer}")
+
+    destination = extract_destination(call.arguments)
+    if destination is not None and not destination_allowed(
+        destination, contract.allowed_destinations
+    ):
+        targets.add(f"destination:{destination_host(destination)}")
     return targets
 
 

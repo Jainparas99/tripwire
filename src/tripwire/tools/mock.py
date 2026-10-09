@@ -13,7 +13,7 @@ CUSTOMERS: dict[str, dict[str, Any]] = {
         "customer_id": "A",
         "name": "Acme Renewables",
         "plan": "enterprise",
-        "open_tickets": ["T-A-100", "T-A-101", "T-A-102", "T-A-103"],
+        "open_tickets": ["T-A-100", "T-A-101", "T-A-104"],
     },
     "B": {
         "customer_id": "B",
@@ -110,8 +110,9 @@ class MockToolRegistry:
 
     def resource_scope(self, call: ToolCall) -> dict[str, str]:
         if call.tool == "read_ticket":
-            ticket_id = str(call.arguments["ticket_id"])
-            return {"customer_id": str(TICKETS[ticket_id]["customer_id"])}
+            ticket = TICKETS.get(str(call.arguments.get("ticket_id")))
+            if ticket is not None:
+                return {"customer_id": str(ticket["customer_id"])}
         return {}
 
     def honeytoken_touched(self, call: ToolCall, honeytokens: tuple[str, ...]) -> bool:
