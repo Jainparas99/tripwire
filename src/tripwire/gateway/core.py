@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from threading import RLock
 from typing import Any
 
 from tripwire.audit.log import AuditLog
@@ -28,6 +29,8 @@ class TripwireGateway:
         self._seq = 0
         self._score = 0
         self._containment_state = ContainmentState.OK
+        # One session's score, containment state and hash chain must advance one call at a time.
+        self._lock = RLock()
 
     @property
     def seq(self) -> int:
@@ -35,6 +38,10 @@ class TripwireGateway:
 
     def authorize(self, call: ToolCall) -> Decision:
         """Return ALLOW or DENY using only trusted contract state and call arguments."""
+        with self._lock:
+            return self._authorize(call)
+
+    def _authorize(self, call: ToolCall) -> Decision:
         if self._containment_state in {ContainmentState.PAUSED, ContainmentState.KILLED}:
             return Decision.deny(
                 f"SESSION_{self._containment_state.value}",
@@ -111,8 +118,12 @@ class TripwireGateway:
 
     def call_tool(self, tool: str, arguments: dict[str, Any] | None = None) -> GatewayResult:
         """Authorize, execute only on ALLOW, and append exactly one audit event."""
+        with self._lock:
+            return self._call_tool(tool, arguments)
+
+    def _call_tool(self, tool: str, arguments: dict[str, Any] | None) -> GatewayResult:
         call = ToolCall(tool=tool, arguments=arguments or {})
-        decision = self.authorize(call)
+        decision = self._authorize(call)
 
         data: dict[str, Any] | None = None
         tool_executed = False

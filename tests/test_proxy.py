@@ -60,3 +60,46 @@ def test_json_rpc_rejects_unknown_method(tmp_path: Path) -> None:
     result = handle_json_rpc(gateway, {"jsonrpc": "2.0", "id": 1, "method": "tools/list"})
 
     assert result["error"]["code"] == -32601
+
+
+def test_concurrent_http_calls_keep_one_ordered_hash_chain(tmp_path: Path) -> None:
+    import json
+    from concurrent.futures import ThreadPoolExecutor
+    from threading import Thread
+    from urllib.request import Request, urlopen
+
+    from tripwire.proxy.server import make_server
+
+    contract = TaskContract(
+        task_id="support-summary-001",
+        description="Summarize Customer A support state",
+        principal="user-123",
+        scope={"customer_id": "A"},
+        allowed_tools=frozenset({"search_docs"}),
+        max_actions=25,
+    )
+    audit_log = AuditLog(tmp_path / "audit.jsonl", reset=True)
+    gateway = TripwireGateway(contract=contract, audit_log=audit_log, session_id="sess_race")
+    server = make_server(host="127.0.0.1", port=0, gateway=gateway)
+    thread = Thread(target=server.serve_forever, daemon=True)
+    thread.start()
+    url = f"http://127.0.0.1:{server.server_address[1]}/tool-call"
+
+    def post(index: int) -> str:
+        body = json.dumps({"tool": "search_docs", "arguments": {"query": f"q{index}"}})
+        request = Request(url, data=body.encode(), method="POST")
+        with urlopen(request, timeout=10) as response:
+            return json.loads(response.read())["decision"]["action"]
+
+    try:
+        with ThreadPoolExecutor(max_workers=20) as pool:
+            actions = list(pool.map(post, range(40)))
+    finally:
+        server.shutdown()
+        thread.join(timeout=5)
+
+    events = audit_log.read_events()
+    assert len(events) == 40
+    assert [event.seq for event in events] == list(range(1, 41))
+    assert audit_log.verify_chain()
+    assert actions.count("ALLOW") == 25

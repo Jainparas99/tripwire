@@ -65,7 +65,12 @@ def make_server(
         def log_message(self, format: str, *args: object) -> None:
             return
 
-    return ThreadingHTTPServer((host, port), Handler)
+    return _Server((host, port), Handler)
+
+
+class _Server(ThreadingHTTPServer):
+    daemon_threads = True
+    request_queue_size = 128
 
 
 def _read_json(handler: BaseHTTPRequestHandler) -> dict[str, Any]:
