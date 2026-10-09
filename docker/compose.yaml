@@ -2,14 +2,15 @@ services:
   agent:
     build:
       context: ..
-      dockerfile: docker/Dockerfile
-    command: ["python", "examples/enterprise_agent/replay_agent.py"]
+      dockerfile: docker/agent.Dockerfile
     environment:
       TRIPWIRE_GATEWAY_URL: "http://gateway:8080/tool-call"
+      TRIPWIRE_SCENARIO: "${TRIPWIRE_SCENARIO:-slow_drift}"
     networks:
       - agent_internal
     depends_on:
-      - gateway
+      gateway:
+        condition: service_healthy
 
   gateway:
     build:
@@ -18,11 +19,17 @@ services:
     command: ["tripwire-gateway", "--host", "0.0.0.0", "--port", "8080"]
     environment:
       TRIPWIRE_CONTRACT: "examples/contracts/support_summary.yaml"
-      TRIPWIRE_AUDIT_LOG: "/tmp/tripwire/gateway.jsonl"
+      TRIPWIRE_AUDIT_LOG: "/data/gateway-audit.jsonl"
       TRIPWIRE_TOOL_BASE_URL: "http://mock-tools:9090"
+    volumes:
+      - ../.tripwire:/data
     networks:
       - agent_internal
       - tools_only
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8080/healthz', timeout=2)"]
+      interval: 2s
+      retries: 15
     depends_on:
       - mock-tools
 
