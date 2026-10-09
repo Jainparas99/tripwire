@@ -31,7 +31,7 @@ def build_template_report(events: list[AuditEvent]) -> IncidentReport:
     return IncidentReport(
         report_id="template-report",
         severity=severity,
-        summary=_summary(source_events, severity),
+        summary=_summary(events, severity),
         stage_labels=stages,
         timeline=timeline,
         claims=claims,
@@ -52,12 +52,41 @@ def _severity(events: list[AuditEvent]) -> str:
 
 
 def _summary(events: list[AuditEvent], severity: str) -> str:
-    denied = sum(1 for event in events if event.decision == "DENY")
-    contained = sum(1 for event in events if event.containment_state in {"PAUSED", "KILLED"})
-    return (
-        f"{severity.title()} Tripwire report: "
-        f"{denied} denied event(s), {contained} contained event(s)."
+    """A factual narrative built only from audit fields, so it never needs verifying."""
+    if not events:
+        return "No audit events were recorded."
+    final = events[-1]
+    denied = [event for event in events if event.decision == "DENY"]
+    ran_while_blocked = sum(
+        event.tool_invoked
+        and (event.decision == "DENY" or event.containment_state in {"PAUSED", "KILLED"})
+        for event in events
     )
+    parts = [
+        f"{severity.title()}: session {final.session_id} ended {final.containment_state.value} "
+        f"after {len(events)} call(s); {len(denied)} denied, "
+        f"{ran_while_blocked} tool(s) ran while blocked."
+    ]
+    first_flag = next(
+        (event for event in events if event.decision == "DENY" or event.reason_codes), None
+    )
+    if first_flag is None:
+        parts.append("No call was denied or flagged.")
+    else:
+        parts.append(
+            f"First flagged at {first_flag.event_id}: {first_flag.attempted.tool} "
+            f"({', '.join(first_flag.reason_codes) or first_flag.decision.value})."
+        )
+    contained = next(
+        (event for event in events if event.containment_state in {"PAUSED", "KILLED"}), None
+    )
+    if contained is not None:
+        parts.append(
+            f"Contained at {contained.event_id}: {contained.attempted.tool} moved the session "
+            f"to {contained.containment_state.value} "
+            f"({', '.join(contained.reason_codes) or 'session already contained'})."
+        )
+    return " ".join(parts)
 
 
 def _timeline_line(event: AuditEvent) -> str:

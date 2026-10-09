@@ -240,9 +240,8 @@ def test_template_report_is_rebuilt_when_model_becomes_available(
     assert first.generator == "template"
     assert path.exists()
 
-    second = cache.load_or_build_report(
-        events=events, model="glm4:9b", cache_dir=cache_dir, refresh=True
-    )
+    # No --refresh: a cached template must not block the model once it is available.
+    second = cache.load_or_build_report(events=events, model="glm4:9b", cache_dir=cache_dir)
     third = cache.load_or_build_report(events=events, model="glm4:9b", cache_dir=cache_dir)
 
     assert second.generator == third.generator == "ollama:glm4:9b"
@@ -273,9 +272,8 @@ def test_legacy_template_cache_is_ignored_and_model_change_rebuilds(
     first = cache.load_or_build_report(
         events=events, model="qwen", cache_dir=cache_dir, refresh=True
     )
-    second = cache.load_or_build_report(
-        events=events, model="glm4:9b", cache_dir=cache_dir, refresh=True
-    )
+    # No --refresh: a cached template must not block the model once it is available.
+    second = cache.load_or_build_report(events=events, model="glm4:9b", cache_dir=cache_dir)
     third = cache.load_or_build_report(events=events, model="glm4:9b", cache_dir=cache_dir)
 
     assert first.generator == "ollama:qwen"
@@ -304,3 +302,37 @@ def test_cli_model_selects_requested_ollama_model(tmp_path: Path, monkeypatch, c
     assert seen == ["ollama:glm4:9b"]
     assert events
     assert '"generator": "template"' in capsys.readouterr().out
+
+
+def test_verified_report_headline_is_deterministic_and_model_prose_is_kept_apart(
+    tmp_path: Path,
+) -> None:
+    events = _events(tmp_path)
+    template = build_template_report(events)
+    model_report = template.model_copy(
+        update={
+            "generator": "ollama:test",
+            "summary": "The agent exfiltrated the entire customer database.",
+        }
+    )
+
+    result = verify_report(model_report, events)
+
+    assert result.verified
+    assert result.report.summary == template.summary
+    assert result.report.model_narrative == "The agent exfiltrated the entire customer database."
+    again = verify_report(result.report, events)
+    assert again.report.model_narrative == result.report.model_narrative
+
+
+def test_template_summary_names_first_flag_and_containment(tmp_path: Path) -> None:
+    from tripwire.demo import replay_scenario
+
+    replay_scenario("escape", output_dir=tmp_path)
+    events = AuditLog(tmp_path / "demo-escape.jsonl").read_events()
+
+    summary = build_template_report(events).summary
+
+    assert "ended KILLED after 6 call(s); 4 denied, 0 tool(s) ran while blocked" in summary
+    assert "First flagged at evt_000003: run_shell (UNKNOWN_TOOL)" in summary
+    assert "Contained at evt_000004: http_post moved the session to KILLED" in summary

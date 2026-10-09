@@ -29,6 +29,9 @@ class IncidentReport(BaseModel):
     generator: str = "template"
     severity: str
     summary: str
+    # Free-text prose from a model. It is never verified, so it is kept apart from the
+    # deterministic summary and shown as unverified.
+    model_narrative: str | None = None
     stage_labels: tuple[str, ...] = Field(default_factory=tuple)
     timeline: tuple[str, ...] = Field(default_factory=tuple)
     claims: tuple[Claim, ...] = Field(default_factory=tuple)

@@ -48,10 +48,9 @@ def load_cached_report(
         report = IncidentReport.model_validate_json(path.read_text(encoding="utf-8"))
     except ValueError:
         return None
-    if preferred_generator is not None and report.generator not in {
-        preferred_generator,
-        "template",
-    }:
+    # A cached template must not block a model the caller prefers: rebuild so the model is
+    # retried. The template is cheap to rebuild if the model is still unavailable.
+    if preferred_generator is not None and report.generator != preferred_generator:
         return None
     return report if verify_report(report, events).verified else None
 

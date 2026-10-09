@@ -68,6 +68,7 @@ def test_authorize_commits_and_audits_without_running_tool(tmp_path: Path) -> No
     assert event.decision is DecisionAction.DENY
     assert event.tool_invoked is False
     assert event.tool_completed is False
+    assert event.reason_codes[-1] == "AUTHORIZE_ONLY"
     assert tools.call_counts["read_customer"] == 0
     assert gateway.call_tool("read_customer", {"customer_id": "A"}).decision.score == 3
 

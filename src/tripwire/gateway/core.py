@@ -17,6 +17,7 @@ from tripwire.tools.base import ToolRegistry
 from tripwire.tools.mock import MockToolRegistry
 
 MALFORMED_TOOL = "<malformed>"
+AUTHORIZE_ONLY = "AUTHORIZE_ONLY"
 
 
 class TripwireGateway:
@@ -60,9 +61,16 @@ class TripwireGateway:
         return self._seq
 
     def authorize(self, call: ToolCall) -> Decision:
-        """Authorize and audit an attempted call without executing its tool."""
+        """Authorize and audit an attempted call without executing its tool.
+
+        The audit event carries ``AUTHORIZE_ONLY`` so the log says the gateway decided but did
+        not run the tool. Use :meth:`call_tool` to have the gateway execute it.
+        """
         with self._lock:
             decision = self._authorize(call)
+            decision = decision.model_copy(
+                update={"reason_codes": (*decision.reason_codes, AUTHORIZE_ONLY)}
+            )
             self._append_audit_event(call=call, decision=decision)
             return decision
 

@@ -29,11 +29,17 @@ def verify_report(report: IncidentReport, events: list[AuditEvent]) -> Verificat
         verified_claims.append(claim.model_copy(update={"verified": not claim_errors}))
 
     deterministic = build_template_report(events)
+    narrative = report.model_narrative
+    if narrative is None and report.generator != "template" and report.summary:
+        narrative = report.summary
     verified_report = report.model_copy(
         update={
             "claims": tuple(verified_claims),
             "severity": deterministic.severity,
             "stage_labels": deterministic.stage_labels,
+            # Only claims are checkable, so the headline summary always comes from the log.
+            "summary": deterministic.summary,
+            "model_narrative": narrative,
         }
     )
     return VerificationResult(
