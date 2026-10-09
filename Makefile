@@ -23,7 +23,7 @@ live-demo:
 	PYTHONPATH=src uv run python -m tripwire.demo --mode live
 
 model-gauntlet:
-	PYTHONPATH=src uv run python -m tripwire.model_gauntlet
+	PYTHONPATH=src uv run python -m tripwire.model_gauntlet $(ARGS)
 
 investigate:
 	PYTHONPATH=src uv run python -m tripwire.investigation.cli .tripwire/demo-*.jsonl

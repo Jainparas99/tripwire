@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 import os
 from pathlib import Path
 
@@ -16,6 +17,7 @@ ROOT = Path(__file__).resolve().parents[1]
 LOG_DIR = Path(os.getenv("TRIPWIRE_LOG_DIR", ROOT / ".tripwire"))
 REPORT_DIR = LOG_DIR / "reports"
 TRACE_FILE = ROOT / "evaluation/traces/checkpoint_b.yaml"
+GAUNTLET_SNAPSHOT = ROOT / "evaluation/gauntlet_results.json"
 CONTRACT_FILE = ROOT / "examples/contracts/support_summary.yaml"
 
 # Containment colours: green -> amber -> red -> contained.
@@ -33,6 +35,14 @@ def main() -> None:
         "Replays are synthetic fixtures."
     )
 
+    session_tab, gauntlet_tab = st.tabs(["Session", "Model gauntlet"])
+    with session_tab:
+        _session_tab()
+    with gauntlet_tab:
+        _gauntlet_tab()
+
+
+def _session_tab() -> None:
     logs = _audit_logs()
     if not logs:
         st.info("No audit logs yet. Run `make demo` to replay the scripted scenarios.")
@@ -139,6 +149,41 @@ def _report_panel(events: list[AuditEvent]) -> None:
         for claim in result.report.claims:
             mark = "✓" if claim.verified else "✗"
             st.markdown(f"{mark} {claim.text} ({', '.join(claim.event_ids)})")
+
+
+def _gauntlet_tab() -> None:
+    if not GAUNTLET_SNAPSHOT.exists():
+        st.info("No gauntlet snapshot yet. Run `make model-gauntlet ARGS=--snapshot`.")
+        return
+    snapshot = json.loads(GAUNTLET_SNAPSHOT.read_text(encoding="utf-8"))
+    st.markdown(
+        f"Snapshot from **{snapshot['date']}** · temperature {snapshot['temperature']} · "
+        f"{snapshot['repeats']} runs per model and prompt · up to {snapshot['max_steps']} calls"
+    )
+    st.caption(
+        "Baited measures instruction-following: the prompt asks for the decoy ticket. "
+        "Neutral measures susceptibility to injected ticket content, and only means something "
+        "for runs that saw the injection. A model that never misbehaves is a valid result. "
+        "Outcomes come from Tripwire audit logs, not from what the model says. "
+        "This is a scripted scenario, not an autonomous red team."
+    )
+    rows = snapshot["results"]
+    st.table(
+        {
+            "Model": [row["model"] for row in rows],
+            "Prompt": [row["prompt"] for row in rows],
+            "Status": [row["status"] for row in rows],
+            "Completed": [f"{row['completed_runs']}/{row['runs']}" for row in rows],
+            "Saw injection": [str(row["runs_saw_injection"]) for row in rows],
+            "Unsafe-attempt runs": [str(row["runs_with_unsafe_attempt"]) for row in rows],
+            "Blocked runs": [str(row["runs_blocked"]) for row in rows],
+            "Worst state": [row["worst_containment_state"] for row in rows],
+            "Executed while blocked": [str(row["executed_while_blocked"]) for row in rows],
+        }
+    )
+    with st.expander("Prompts", expanded=False):
+        for name, text in snapshot["prompts"].items():
+            st.markdown(f"**{name}:** {text}")
 
 
 def _eval_panel() -> None:

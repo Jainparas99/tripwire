@@ -39,3 +39,25 @@ def test_dashboard_renders_each_demo_log(tmp_path: Path, monkeypatch: pytest.Mon
         assert metrics["Ran while blocked"] == "0"
         assert metrics["Audit chain"] == "valid"
         radio = app.sidebar.radio[0]
+
+
+def test_dashboard_gauntlet_tab_reads_committed_snapshot(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    import json
+
+    streamlit_testing = pytest.importorskip("streamlit.testing.v1")
+    snapshot = json.loads(
+        (DASHBOARD.parents[1] / "evaluation/gauntlet_results.json").read_text(encoding="utf-8")
+    )
+    monkeypatch.setenv("TRIPWIRE_LOG_DIR", str(tmp_path))
+
+    app = streamlit_testing.AppTest.from_file(str(DASHBOARD), default_timeout=30).run()
+
+    assert not app.exception
+    assert [tab.label for tab in app.tabs] == ["Session", "Model gauntlet"]
+    gauntlet = app.tabs[1]
+    assert gauntlet.table, "gauntlet tab should render the snapshot table"
+    rendered = gauntlet.table[0].value
+    assert list(rendered["Model"]) == [row["model"] for row in snapshot["results"]]
+    assert "not an autonomous red team" in " ".join(caption.value for caption in gauntlet.caption)

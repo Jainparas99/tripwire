@@ -75,7 +75,14 @@ DOCS: dict[str, str] = {
 class MockToolRegistry:
     """In-process stand-in for future MCP tools, using synthetic data only."""
 
-    def __init__(self) -> None:
+    def __init__(
+        self,
+        *,
+        customers: dict[str, dict[str, Any]] | None = None,
+        tickets: dict[str, dict[str, Any]] | None = None,
+    ) -> None:
+        self._customers = CUSTOMERS if customers is None else customers
+        self._tickets = TICKETS if tickets is None else tickets
         self._tools: dict[str, ToolImpl] = {
             "read_customer": self._read_customer,
             "read_ticket": self._read_ticket,
@@ -95,11 +102,11 @@ class MockToolRegistry:
         try:
             if call.tool == "read_customer":
                 customer_id = _required_str(call.arguments, "customer_id")
-                if customer_id not in CUSTOMERS:
+                if customer_id not in self._customers:
                     return "UNKNOWN_CUSTOMER"
             elif call.tool == "read_ticket":
                 ticket_id = _required_str(call.arguments, "ticket_id")
-                if ticket_id not in TICKETS:
+                if ticket_id not in self._tickets:
                     return "UNKNOWN_TICKET"
             elif call.tool == "search_docs":
                 _required_str(call.arguments, "query")
@@ -114,17 +121,17 @@ class MockToolRegistry:
 
     def resource_scope(self, call: ToolCall) -> dict[str, str]:
         if call.tool == "read_ticket":
-            ticket = TICKETS.get(str(call.arguments.get("ticket_id")))
+            ticket = self._tickets.get(str(call.arguments.get("ticket_id")))
             if ticket is not None:
                 return {"customer_id": str(ticket["customer_id"])}
         return {}
 
     def preview(self, call: ToolCall) -> str:
         if call.tool == "read_ticket":
-            ticket = TICKETS.get(str(call.arguments.get("ticket_id")))
+            ticket = self._tickets.get(str(call.arguments.get("ticket_id")))
             return str(ticket) if ticket is not None else ""
         if call.tool == "read_customer":
-            customer = CUSTOMERS.get(str(call.arguments.get("customer_id")))
+            customer = self._customers.get(str(call.arguments.get("customer_id")))
             return str(customer) if customer is not None else ""
         return ""
 
@@ -134,11 +141,11 @@ class MockToolRegistry:
 
     def _read_customer(self, arguments: dict[str, Any]) -> dict[str, Any]:
         customer_id = _required_str(arguments, "customer_id")
-        return CUSTOMERS[customer_id]
+        return self._customers[customer_id]
 
     def _read_ticket(self, arguments: dict[str, Any]) -> dict[str, Any]:
         ticket_id = _required_str(arguments, "ticket_id")
-        ticket = TICKETS[ticket_id]
+        ticket = self._tickets[ticket_id]
         requested_customer = arguments.get("customer_id")
         if requested_customer is not None and requested_customer != ticket["customer_id"]:
             raise ValueError("ticket does not belong to requested customer")
