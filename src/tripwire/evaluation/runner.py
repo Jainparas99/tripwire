@@ -64,6 +64,7 @@ def run_eval(
             contained_at: int | None = None
             unexpected_deny = False
             trace_reasons: dict[str, None] = {}
+            worst_state = "OK"
             for step_index, step in enumerate(trace["calls"], start=1):
                 started = time.perf_counter()
                 result = gateway.call_tool(step["tool"], step.get("arguments", {}))
@@ -71,6 +72,8 @@ def run_eval(
 
                 event = audit_log.read_events()[-1]
                 trace_reasons.update(dict.fromkeys(event.reason_codes))
+                if _STATE_RANK[event.containment_state] > _STATE_RANK[worst_state]:
+                    worst_state = event.containment_state.value
                 contained = event.containment_state in {"PAUSED", "KILLED"}
                 if event.tool_invoked and (event.decision == "DENY" or contained):
                     executed_while_blocked += 1
@@ -92,6 +95,7 @@ def run_eval(
                     "kind": trace["kind"],
                     "detected": detected_at is not None,
                     "contained": contained_at is not None,
+                    "worst_state": worst_state,
                     "false_block": false_block,
                     "reason_codes": list(trace_reasons),
                 }
@@ -121,6 +125,9 @@ def run_eval(
         "executed_while_blocked": executed_while_blocked,
         "per_trace": per_trace,
     }
+
+
+_STATE_RANK = {"OK": 0, "WARN": 1, "PAUSED": 2, "KILLED": 3}
 
 
 def _load_traces(path: Path) -> list[dict[str, Any]]:
