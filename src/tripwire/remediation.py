@@ -180,11 +180,18 @@ def evaluate(
     candidate_id: str,
     contract_path: Path = CONTRACT_PATH,
     trace_path: Path = TRACE_PATH,
+    holdout_path: Path | None = None,
+    holdout_baseline: dict[str, Any] | None = None,
 ) -> CandidateResult:
     config = to_config(entries)
     try:
         metrics = run_eval(
             contract_path=contract_path, trace_path=trace_path, detector_config=config
+        )
+        holdout = (
+            run_eval(contract_path=contract_path, trace_path=holdout_path, detector_config=config)
+            if holdout_path is not None
+            else None
         )
     except ValueError as exc:  # e.g. thresholds no longer increase warn < pause < kill
         return CandidateResult(
@@ -197,6 +204,11 @@ def evaluate(
             [],
         )
     reasons, broken = gate(baseline, metrics)
+    if holdout is not None and holdout_baseline is not None:
+        # The holdout must pass the same gate, but cannot by itself justify a change.
+        holdout_reasons, holdout_broken = gate(holdout_baseline, holdout)
+        reasons += [f"holdout: {reason}" for reason in holdout_reasons]
+        broken += holdout_broken
     improved = (
         metrics["attack_containment_rate"] > baseline["attack_containment_rate"]
         or metrics["attack_detection_rate"] > baseline["attack_detection_rate"]
@@ -257,8 +269,15 @@ def remediate(
     report_dir: Path = REPORT_DIR,
     contract_path: Path = CONTRACT_PATH,
     trace_path: Path = TRACE_PATH,
+    holdout_path: Path | None = None,
 ) -> dict[str, Any]:
     baseline = run_eval(contract_path=contract_path, trace_path=trace_path)
+    holdout_baseline = (
+        run_eval(contract_path=contract_path, trace_path=holdout_path)
+        if holdout_path is not None
+        else None
+    )
+    holdout = {"holdout_path": holdout_path, "holdout_baseline": holdout_baseline}
     codes = incident_codes(incident) if incident else warn_only_attack_codes(baseline)
     entries, unmatched = select_entries(codes, catalog)
 
@@ -269,6 +288,7 @@ def remediate(
             candidate_id=entry.id,
             contract_path=contract_path,
             trace_path=trace_path,
+            **holdout,
         )
         for entry in entries
     ]
@@ -286,6 +306,7 @@ def remediate(
             candidate_id="combined",
             contract_path=contract_path,
             trace_path=trace_path,
+            **holdout,
         )
         if len(accepted_entries) > 1
         else None
@@ -326,6 +347,16 @@ def remediate(
             "no_catalog_entry": sorted(unmatched),
         },
         "baseline": {key: value for key, value in baseline.items() if key != "per_trace"},
+        "holdout": (
+            {
+                "path": str(holdout_path),
+                "baseline": {
+                    key: value for key, value in holdout_baseline.items() if key != "per_trace"
+                },
+            }
+            if holdout_baseline is not None
+            else None
+        ),
         "candidates": [asdict(result) for result in candidates],
         "combination": asdict(combination) if combination else None,
         "proposal": [entry.id for entry in proposal],
@@ -359,6 +390,8 @@ def _pct(value: float | None) -> str:
 def print_report(report: dict[str, Any]) -> None:
     selection = report["selection"]
     print(f"Selection: {selection['source']} -> {', '.join(selection['reason_codes']) or 'none'}")
+    if report.get("holdout"):
+        print(f"Holdout: {_display(Path(report['holdout']['path']))} (must also pass the gate)")
     if selection["no_catalog_entry"]:
         print(f"No catalog entry for: {', '.join(selection['no_catalog_entry'])}")
     base = report["baseline"]
@@ -427,10 +460,15 @@ def main() -> None:
     parser.add_argument(
         "--apply", action="store_true", help="Write accepted weight changes to the config"
     )
+    parser.add_argument(
+        "--holdout", type=Path, help="Extra trace file every candidate must also pass the gate on"
+    )
     args = parser.parse_args()
     if args.incident is not None and not args.incident.is_file():
         parser.error(f"not an audit log: {args.incident}")
-    print_report(remediate(incident=args.incident, apply=args.apply))
+    if args.holdout is not None and not args.holdout.is_file():
+        parser.error(f"not a trace file: {args.holdout}")
+    print_report(remediate(incident=args.incident, apply=args.apply, holdout_path=args.holdout))
 
 
 if __name__ == "__main__":

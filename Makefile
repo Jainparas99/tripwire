@@ -1,4 +1,4 @@
-.PHONY: setup test lint eval remediate evidence demo live-demo model-gauntlet investigate audit-index tools gateway mcp dashboard docker-build docker-up docker-down docker-check
+.PHONY: setup test lint eval remediate evidence demo live-demo model-gauntlet redteam investigate audit-index tools gateway mcp dashboard docker-build docker-up docker-down docker-check
 
 setup:
 	uv sync
@@ -27,6 +27,9 @@ live-demo:
 
 model-gauntlet:
 	PYTHONPATH=src uv run python -m tripwire.model_gauntlet $(ARGS)
+
+redteam:
+	PYTHONPATH=src uv run python -m tripwire.redteam $(ARGS)
 
 investigate:
 	PYTHONPATH=src uv run python -m tripwire.investigation.cli .tripwire/demo-*.jsonl
