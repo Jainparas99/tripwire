@@ -182,7 +182,7 @@ def _live_containment(logs: list[Path]) -> None:
         st.markdown(
             '<div class="tw-card"><div class="tw-card-title">Read-only session</div>'
             '<div class="tw-small">Events are loaded from the JSONL source of truth. '
-            'The dashboard does not execute, retry, or mutate tool calls.</div></div>',
+            "The dashboard does not execute, retry, or mutate tool calls.</div></div>",
             unsafe_allow_html=True,
         )
 
@@ -198,7 +198,7 @@ def _session_summary(events: list[AuditEvent], log_path: Path) -> None:
         kill = 10
     st.markdown(
         f'<div class="tw-card"><div class="tw-card-title">Session '
-        f'<code>{html.escape(final.session_id)}</code> {_state_badge(state)}</div>'
+        f"<code>{html.escape(final.session_id)}</code> {_state_badge(state)}</div>"
         f'<div class="tw-small">Final containment state with explicit text and color.</div></div>',
         unsafe_allow_html=True,
     )
@@ -224,8 +224,8 @@ def _timeline(events: list[AuditEvent]) -> None:
         reasons = ", ".join(event.reason_codes) or "no findings"
         st.markdown(
             f'<div class="tw-card"><div><code>{html.escape(event.event_id)}</code> '
-            f'<strong>{html.escape(event.attempted.tool)}</strong> '
-            f'{_decision_badge(decision)} {_state_badge(state)} '
+            f"<strong>{html.escape(event.attempted.tool)}</strong> "
+            f"{_decision_badge(decision)} {_state_badge(state)} "
             f'<span class="tw-small">score {event.score} · {html.escape(execution)}</span></div>'
             f'<div class="tw-small">{_arguments(event)} · {html.escape(reasons)}</div></div>',
             unsafe_allow_html=True,
@@ -264,8 +264,8 @@ def _incident_report(logs: list[Path]) -> None:
     st.markdown(
         f'<div class="tw-card"><div class="tw-card-title">{html.escape(report.severity)} '
         f'<span class="tw-muted">· generator {html.escape(report.generator)} · '
-        f'citations {html.escape(citation_text)}</span></div>'
-        f'<div>{html.escape(report.summary)}</div></div>',
+        f"citations {html.escape(citation_text)}</span></div>"
+        f"<div>{html.escape(report.summary)}</div></div>",
         unsafe_allow_html=True,
     )
     if report.stage_labels:

@@ -55,8 +55,15 @@ def test_dashboard_gauntlet_tab_reads_committed_snapshot(
     app = streamlit_testing.AppTest.from_file(str(DASHBOARD), default_timeout=30).run()
 
     assert not app.exception
-    assert [tab.label for tab in app.tabs] == ["Session", "Model gauntlet"]
-    gauntlet = app.tabs[1]
+    assert [tab.label for tab in app.tabs] == [
+        "Live containment",
+        "Incident report",
+        "Model gauntlet",
+        "Remediation",
+        "Red-team",
+        "Fleet",
+    ]
+    gauntlet = app.tabs[2]
     assert gauntlet.table, "gauntlet tab should render the snapshot table"
     rendered = gauntlet.table[0].value
     assert list(rendered["Model"]) == [row["model"] for row in snapshot["results"]]
