@@ -1,0 +1,10 @@
+.git
+.venv
+.pytest_cache
+.ruff_cache
+.tripwire
+docs/internal
+tripwire-docs
+__pycache__
+*.pyc
+.DS_Store

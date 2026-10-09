@@ -1,0 +1,23 @@
+flowchart LR
+  Agent["Agent container\ninternal network only"]
+  Gateway["Tripwire Gateway\nauthorize + detectors + audit"]
+  Tools["Mock tools service\nsynthetic data only"]
+  Audit["JSONL audit log\nhash chained"]
+  Investigator["Investigator\nOllama or template fallback"]
+  Dashboard["Streamlit dashboard\nreplay + metrics + report"]
+
+  Agent -->|"POST /tool-call"| Gateway
+  Gateway -->|"HTTP tool calls\nonly on ALLOW"| Tools
+  Gateway --> Audit
+  Audit --> Investigator
+  Audit --> Dashboard
+
+  subgraph agent_internal["agent_internal network (internal: true)"]
+    Agent
+    Gateway
+  end
+
+  subgraph tools_only["tools_only network (internal: true)"]
+    Gateway
+    Tools
+  end

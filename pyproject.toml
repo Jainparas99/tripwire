@@ -8,6 +8,7 @@ license = { text = "MIT" }
 dependencies = [
   "pydantic>=2.9",
   "pyyaml>=6.0",
+  "streamlit>=1.39",
 ]
 
 [dependency-groups]
@@ -18,6 +19,9 @@ dev = [
 
 [project.scripts]
 tripwire-demo = "tripwire.demo:main"
+tripwire-gateway = "tripwire.proxy.server:main"
+tripwire-investigate = "tripwire.investigation.cli:main"
+tripwire-tools = "tripwire.tools.server:main"
 
 [build-system]
 requires = ["hatchling"]

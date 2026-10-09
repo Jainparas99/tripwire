@@ -1,0 +1,41 @@
+services:
+  agent:
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile
+    command: ["python", "examples/enterprise_agent/replay_agent.py"]
+    environment:
+      TRIPWIRE_GATEWAY_URL: "http://gateway:8080/tool-call"
+    networks:
+      - agent_internal
+    depends_on:
+      - gateway
+
+  gateway:
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile
+    command: ["tripwire-gateway", "--host", "0.0.0.0", "--port", "8080"]
+    environment:
+      TRIPWIRE_CONTRACT: "examples/contracts/support_summary.yaml"
+      TRIPWIRE_AUDIT_LOG: "/tmp/tripwire/gateway.jsonl"
+      TRIPWIRE_TOOL_BASE_URL: "http://mock-tools:9090"
+    networks:
+      - agent_internal
+      - tools_only
+    depends_on:
+      - mock-tools
+
+  mock-tools:
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile
+    command: ["tripwire-tools", "--host", "0.0.0.0", "--port", "9090"]
+    networks:
+      - tools_only
+
+networks:
+  agent_internal:
+    internal: true
+  tools_only:
+    internal: true

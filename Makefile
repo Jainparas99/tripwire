@@ -1,4 +1,4 @@
-.PHONY: setup test lint eval demo
+.PHONY: setup test lint eval demo investigate tools gateway dashboard docker-build docker-up docker-down
 
 setup:
 	uv sync
@@ -15,3 +15,24 @@ eval:
 
 demo:
 	PYTHONPATH=src uv run python -m tripwire.demo
+
+investigate:
+	PYTHONPATH=src uv run python -m tripwire.investigation.cli .tripwire/demo-audit.jsonl
+
+tools:
+	PYTHONPATH=src uv run python -m tripwire.tools.server --host 127.0.0.1 --port 9090
+
+gateway:
+	PYTHONPATH=src TRIPWIRE_TOOL_BASE_URL=http://127.0.0.1:9090 uv run python -m tripwire.proxy.server --host 127.0.0.1 --port 8080
+
+dashboard:
+	PYTHONPATH=src uv run streamlit run dashboard/app.py
+
+docker-build:
+	docker compose -f docker/compose.yaml build
+
+docker-up:
+	docker compose -f docker/compose.yaml up
+
+docker-down:
+	docker compose -f docker/compose.yaml down
