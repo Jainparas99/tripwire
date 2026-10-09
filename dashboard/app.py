@@ -994,6 +994,78 @@ def _fleet_tab(logs: list[Path]) -> None:
         else:
             st.info("The available JSONL sessions contain no readable events.")
     _fleet_gauntlet()
+    _clickhouse_panel()
+
+
+def _clickhouse_panel() -> None:
+    """Shown only when the optional analytics client is installed and ClickHouse answers."""
+    try:
+        from tripwire import analytics
+    except ImportError:
+        return
+    if not analytics.reachable(timeout=0.5):
+        return
+    data = _clickhouse_results()
+    if data is None:
+        return
+    _section("ClickHouse analytics · synthetic scale-up")
+    summary = data["summary"]
+    st.markdown(
+        f"{_badge('SYNTHETIC', 'warn', '▲')} "
+        '<span class="tw-small">The 26 fixture trajectories, replayed through the gateway and '
+        "copied under new session ids and seeded timestamps. Not production traffic.</span>",
+        unsafe_allow_html=True,
+    )
+    _kpis(
+        [
+            ("Events", f"{summary['events']:,}", "unknown", "in tripwire.audit_events"),
+            (
+                "Sessions",
+                f"{summary['sessions']:,}",
+                "unknown",
+                "MergeTree, ordered by session, ts",
+            ),
+            (
+                "Synthetic",
+                f"{summary['synthetic_events']:,}",
+                "warn",
+                "rows labelled synthetic=1",
+            ),
+        ]
+    )
+    titles = {
+        "top_deny_reasons": "Top deny reasons",
+        "time_to_kill": "Time to KILLED per session",
+        "read_then_send_sessions": "Sessions that read, then sent",
+    }
+    cols = st.columns(3, gap="large")
+    for col, (name, result) in zip(cols, data["queries"].items(), strict=False):
+        with col:
+            _section(f"{titles.get(name, name)} · {result['latency_ms']} ms")
+            _html_table(
+                result["columns"],
+                [
+                    [
+                        html.escape(f"{value:,}" if isinstance(value, int) else str(value))
+                        for value in row
+                    ]
+                    for row in result["rows"]
+                ],
+            )
+    st.caption(
+        "Latency is the measured client round trip on a warm local ClickHouse. "
+        "Read-then-send includes sends to allowed destinations, which Tripwire does not flag."
+    )
+
+
+@st.cache_data(ttl=60, show_spinner="Querying ClickHouse…")
+def _clickhouse_results() -> dict[str, Any] | None:
+    from tripwire import analytics
+
+    try:
+        return {"summary": analytics.table_summary(), "queries": analytics.run_queries()}
+    except Exception:
+        return None
 
 
 def _fleet_gauntlet() -> None:

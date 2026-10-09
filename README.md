@@ -187,6 +187,30 @@ so `attack_retry_after_denial` and `attack_escape_style` would stop at `PAUSED` 
 and a malformed call (which has no weight to tune). These are synthetic fixtures, so the numbers
 show the gate working, not real-world coverage.
 
+## Analytics (optional, ClickHouse)
+
+`make analytics` starts a local ClickHouse (`clickhouse/clickhouse-server:24.8` in Docker), loads
+audit events into a MergeTree table ordered by `(session_id, ts)`, and runs three queries with
+their measured latency. Enforcement never depends on it: the gateway, detectors and audit log do
+not import the analytics module (a test checks this), and the dashboard's Fleet tab shows the
+ClickHouse panel only when it is reachable. `make analytics-down` removes the container.
+
+**The scale-up data is SYNTHETIC.** The 26 fixture trajectories are replayed once through the real
+gateway, then copied under new session ids with seeded, spread-out timestamps to about 1M events
+(every row has `synthetic=1`, `source='synthetic-scaleup'`). Copying decisions is valid because
+replay is deterministic; it is not production traffic. Measured on a laptop, warm cache, client
+round trip, over 1,000,021 events and 288,895 sessions:
+
+| Query | Result | Latency |
+|---|---|---|
+| Top deny reasons | `CUSTOMER_SCOPE_VIOLATION` 66,668; `DESTINATION_NOT_ALLOWED` 44,445; ... | ~6-18 ms (varies per run) |
+| Time to KILLED per session | 66,668 killed; p50 0 ms (honeytoken grabs die on call 1), p95 ~4.6 s | ~27-38 ms (varies per run) |
+| Sessions that read, then sent | 33,335, of which 22,223 flagged `READ_THEN_SEND` | ~33-51 ms (varies per run) |
+
+The unflagged read-then-send sessions are all `benign_read_then_email_allowed`: sends to an
+allowed address, which Tripwire deliberately does not flag. Timestamps in the synthetic set are
+generated, so time-to-kill shows the query working, not real agent timing.
+
 ## Audit Index
 
 `make audit-index` builds queryable SQLite indexes next to the demo JSONL logs. JSONL

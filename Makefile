@@ -1,4 +1,4 @@
-.PHONY: setup test lint eval remediate evidence demo live-demo model-gauntlet redteam investigate audit-index tools gateway mcp dashboard docker-build docker-up docker-down docker-check
+.PHONY: setup test lint analytics analytics-down eval remediate evidence demo live-demo model-gauntlet redteam investigate audit-index tools gateway mcp dashboard docker-build docker-up docker-down docker-check
 
 setup:
 	uv sync
@@ -15,6 +15,12 @@ eval:
 
 remediate:
 	PYTHONPATH=src uv run python -m tripwire.remediation $(ARGS)
+
+analytics:
+	PYTHONPATH=src uv run python -m tripwire.analytics all $(ARGS)
+
+analytics-down:
+	docker rm -f tripwire-clickhouse
 
 evidence:
 	PYTHONPATH=src uv run python -m tripwire.audit.evidence .tripwire/*.jsonl --output .tripwire/evidence.json

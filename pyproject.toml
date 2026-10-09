@@ -19,9 +19,12 @@ dev = [
 dashboard = [
   "streamlit>=1.39",
 ]
+analytics = [
+  "clickhouse-connect>=0.8",
+]
 
 [tool.uv]
-default-groups = ["dev", "dashboard"]
+default-groups = ["dev", "dashboard", "analytics"]
 
 [project.scripts]
 tripwire-demo = "tripwire.demo:main"
