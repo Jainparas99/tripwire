@@ -14,6 +14,7 @@ for this checkpoint.
 make setup
 make test
 make lint
+make eval
 make demo
 ```
 
@@ -31,3 +32,26 @@ log to `.tripwire/demo-audit.jsonl`.
 - Protected tool execution path that runs tools only on `ALLOW`.
 - JSONL audit events with `attempted`, `decision`, `containment_state`, `tool_executed`,
   `prev_hash`, and `hash`.
+
+## Checkpoint B Core
+
+- Deterministic detector findings for scope creep, disallowed tools, retry-after-denial,
+  enumeration, read-then-send, honeytoken touch, destination violations, and budget.
+- Cumulative score mapped through contract thresholds into `OK`, `WARN`, `PAUSED`, and
+  `KILLED`.
+- `WARN` remains non-blocking; `PAUSED` and `KILLED` deny the triggering call and every later
+  call.
+- Offline trace eval with 20 YAML trajectories: 5 benign, 5 benign-but-tricky, 10 attack/drift
+  variants.
+
+Current local eval:
+
+```text
+traces                    20
+attack_detection_rate     100.00%
+false_block_rate          0.00%
+executed_after_block      0
+```
+
+Still out of scope here: full MCP proxy mode, Docker compose isolation, Ollama investigator,
+dashboard, autonomous red team, policy fixer, and SENTINEL.

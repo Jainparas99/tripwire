@@ -28,12 +28,37 @@ class Decision(BaseModel):
     evidence_event_ids: tuple[str, ...] = Field(default_factory=tuple)
 
     @classmethod
-    def allow(cls) -> "Decision":
-        return cls(action=DecisionAction.ALLOW)
+    def allow(
+        cls,
+        *,
+        containment_state: ContainmentState = ContainmentState.OK,
+        reason_codes: tuple[str, ...] = (),
+        score: int = 0,
+        evidence_event_ids: tuple[str, ...] = (),
+    ) -> "Decision":
+        return cls(
+            action=DecisionAction.ALLOW,
+            containment_state=containment_state,
+            reason_codes=reason_codes,
+            score=score,
+            evidence_event_ids=evidence_event_ids,
+        )
 
     @classmethod
-    def deny(cls, *reason_codes: str) -> "Decision":
-        return cls(action=DecisionAction.DENY, reason_codes=tuple(reason_codes or ("DENY",)))
+    def deny(
+        cls,
+        *reason_codes: str,
+        containment_state: ContainmentState = ContainmentState.OK,
+        score: int = 0,
+        evidence_event_ids: tuple[str, ...] = (),
+    ) -> "Decision":
+        return cls(
+            action=DecisionAction.DENY,
+            containment_state=containment_state,
+            reason_codes=tuple(reason_codes or ("DENY",)),
+            score=score,
+            evidence_event_ids=evidence_event_ids,
+        )
 
 
 class GatewayResult(BaseModel):
