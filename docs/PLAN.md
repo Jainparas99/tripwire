@@ -21,12 +21,12 @@ Target: an agent does a benign task through the gateway, fully logged.
 
 ### Checkpoint B — Tomorrow morning (before doors): the detection core
 Target: attack traces get caught; benign traces don't.
-- [ ] Honeytoken detector (instant KILL)
-- [ ] Sequence detectors: scope creep, retry-after-denial, enumeration, read-then-send, budget
-- [ ] Suspicion score + warn/pause/kill state machine; paused/killed sessions deny everything
-- [ ] Record 3 attack traces (slow drift, honeytoken grab, escape-style) + 10 benign traces
-- [ ] Eval harness over ≥ 20 trajectories → detection rate, false-block rate, actions-to-detect, latency
-- [ ] Tests for every detector (positive and negative cases)
+- [x] Honeytoken detector (instant KILL)
+- [x] Sequence detectors: scope creep, retry-after-denial, enumeration, read-then-send, budget
+- [x] Suspicion score + warn/pause/kill state machine; paused/killed sessions deny everything
+- [x] Record 3 attack traces (slow drift, honeytoken grab, escape-style) + 10 benign traces
+- [x] Eval harness over ≥ 20 trajectories → detection rate, false-block rate, actions-to-detect, latency
+- [x] Tests for every detector (positive and negative cases)
 - [ ] MCP proxy mode: Tripwire sits in front of the mock MCP server
 - [ ] Dockerfile + compose: agent alone on an `internal: true` network; gateway can reach tools; agent cannot reach tools or internet
 
