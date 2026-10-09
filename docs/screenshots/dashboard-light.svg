@@ -1,0 +1,42 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1440" height="900" viewBox="0 0 1440 900" role="img" aria-labelledby="title desc">
+  <title id="title">Tripwire dashboard light theme</title>
+  <desc id="desc">Light theme dashboard with posture metrics, state badges, six tabs, and live containment empty state.</desc>
+  <rect width="1440" height="900" fill="#ffffff"/>
+  <rect x="0" y="0" width="1440" height="8" fill="#e55b63"/>
+  <g font-family="Inter, -apple-system, BlinkMacSystemFont, Segoe UI, sans-serif" fill="#17212b">
+    <text x="92" y="92" font-size="14" font-weight="800" letter-spacing="2.2" fill="#5e6b78">TRIPWIRE / CONTROL PLANE</text>
+    <text x="92" y="158" font-size="42" font-weight="750">Containment, in one clear flow</text>
+    <text x="92" y="198" font-size="16" fill="#5e6b78">Deterministic task-contract enforcement for agent tool calls. Synthetic fixtures and local evaluation artifacts are shown read-only.</text>
+    <text x="92" y="252" font-size="13" font-weight="750" letter-spacing="1.5" fill="#5e6b78">SYSTEM POSTURE</text>
+  </g>
+  <g font-family="Inter, -apple-system, BlinkMacSystemFont, Segoe UI, sans-serif">
+    <g fill="#17212b">
+      <text x="92" y="298" font-size="15" fill="#5e6b78">Executed while blocked</text><text x="92" y="344" font-size="34">0</text>
+      <text x="420" y="298" font-size="15" fill="#5e6b78">Chain valid</text><text x="420" y="344" font-size="34">n/a</text>
+      <text x="748" y="298" font-size="15" fill="#5e6b78">Traces</text><text x="748" y="344" font-size="34">26</text>
+      <text x="1076" y="298" font-size="15" fill="#5e6b78">False-block rate</text><text x="1076" y="344" font-size="34">0%</text>
+    </g>
+    <g font-size="13" font-weight="800">
+      <rect x="92" y="380" width="56" height="28" rx="14" fill="#e7f5ee" stroke="#18794e"/><text x="108" y="399" fill="#18794e">● OK</text>
+      <rect x="160" y="380" width="70" height="28" rx="14" fill="#fff4dc" stroke="#a96800"/><text x="176" y="399" fill="#a96800">● WARN</text>
+      <rect x="242" y="380" width="92" height="28" rx="14" fill="#fff0e8" stroke="#c05621"/><text x="258" y="399" fill="#c05621">● PAUSED</text>
+      <rect x="346" y="380" width="86" height="28" rx="14" fill="#fdeaea" stroke="#bd2c2c"/><text x="362" y="399" fill="#bd2c2c">● KILLED</text>
+    </g>
+    <text x="448" y="399" font-size="13" fill="#5e6b78">— text labels are always shown with color.</text>
+  </g>
+  <line x1="92" y1="452" x2="1348" y2="452" stroke="#dbe3ea"/>
+  <g font-family="Inter, -apple-system, BlinkMacSystemFont, Segoe UI, sans-serif" font-size="15">
+    <text x="92" y="500" fill="#d04b58" font-weight="700">Live containment</text>
+    <text x="254" y="500" fill="#17212b">Incident report</text>
+    <text x="404" y="500" fill="#17212b">Model gauntlet</text>
+    <text x="564" y="500" fill="#17212b">Remediation</text>
+    <text x="690" y="500" fill="#17212b">Red-team</text>
+    <text x="788" y="500" fill="#17212b">Fleet</text>
+    <line x1="92" y1="520" x2="218" y2="520" stroke="#e55b63" stroke-width="3"/>
+    <line x1="92" y1="522" x2="1348" y2="522" stroke="#dbe3ea"/>
+    <text x="92" y="590" font-size="26" font-weight="750">Live containment</text>
+    <text x="92" y="626" fill="#5e6b78">Choose a session to inspect its append-only, hash-chained event stream.</text>
+  </g>
+  <rect x="92" y="660" width="1256" height="78" rx="10" fill="#edf4ff"/>
+  <text x="112" y="706" font-family="Inter, -apple-system, BlinkMacSystemFont, Segoe UI, sans-serif" font-size="16" fill="#27548d">No audit sessions yet. Run <tspan font-family="monospace">make demo</tspan> to replay the scripted scenarios.</text>
+</svg>
