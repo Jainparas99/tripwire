@@ -2,6 +2,8 @@ from __future__ import annotations
 
 import hashlib
 import json
+import sqlite3
+from contextlib import closing
 from datetime import UTC, datetime
 from pathlib import Path
 
@@ -85,14 +87,73 @@ class AuditLog:
         return events
 
     def verify_chain(self) -> bool:
-        previous: str | None = None
-        for event in self.read_events():
-            if event.prev_hash != previous:
-                return False
-            if _event_hash(event.model_copy(update={"hash": ""})) != event.hash:
-                return False
-            previous = event.hash
-        return True
+        return _chain_valid(self.read_events())
+
+    def build_index(self, path: str | Path | None = None) -> Path:
+        """Rebuild a queryable SQLite index from a verified JSONL chain."""
+        target = Path(path) if path is not None else self.path.with_suffix(".sqlite3")
+        if target.resolve() == self.path.resolve():
+            raise ValueError("index path must differ from the JSONL source")
+        events = self.read_events()
+        if not _chain_valid(events):
+            raise ValueError("cannot index an invalid audit chain")
+
+        target.parent.mkdir(parents=True, exist_ok=True)
+        with closing(sqlite3.connect(target)) as connection, connection:
+            connection.executescript(
+                """
+                CREATE TABLE IF NOT EXISTS audit_events (
+                    position INTEGER PRIMARY KEY,
+                    session_id TEXT NOT NULL,
+                    seq INTEGER NOT NULL,
+                    event_id TEXT NOT NULL,
+                    tool TEXT NOT NULL,
+                    decision TEXT NOT NULL,
+                    containment_state TEXT NOT NULL,
+                    hash TEXT NOT NULL,
+                    event_json TEXT NOT NULL
+                );
+                CREATE INDEX IF NOT EXISTS idx_audit_session_seq ON audit_events(session_id, seq);
+                CREATE INDEX IF NOT EXISTS idx_audit_decision ON audit_events(decision);
+                CREATE INDEX IF NOT EXISTS idx_audit_tool ON audit_events(tool);
+                CREATE TABLE IF NOT EXISTS audit_meta (
+                    key TEXT PRIMARY KEY,
+                    value TEXT NOT NULL
+                );
+                """
+            )
+            connection.execute("DELETE FROM audit_events")
+            connection.execute("DELETE FROM audit_meta")
+            connection.executemany(
+                """
+                INSERT INTO audit_events
+                    (position, session_id, seq, event_id, tool, decision,
+                     containment_state, hash, event_json)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+                """,
+                [
+                    (
+                        position,
+                        event.session_id,
+                        event.seq,
+                        event.event_id,
+                        event.attempted.tool,
+                        event.decision.value,
+                        event.containment_state.value,
+                        event.hash,
+                        event.model_dump_json(),
+                    )
+                    for position, event in enumerate(events, start=1)
+                ],
+            )
+            connection.executemany(
+                "INSERT INTO audit_meta (key, value) VALUES (?, ?)",
+                [
+                    ("event_count", str(len(events))),
+                    ("final_hash", events[-1].hash if events else ""),
+                ],
+            )
+        return target
 
     def _last_hash(self) -> str | None:
         previous: str | None = None
@@ -105,3 +166,14 @@ def _event_hash(event: AuditEvent) -> str:
     payload = event.model_dump(mode="json", exclude={"hash"})
     encoded = json.dumps(payload, sort_keys=True, separators=(",", ":")).encode("utf-8")
     return hashlib.sha256(encoded).hexdigest()
+
+
+def _chain_valid(events: list[AuditEvent]) -> bool:
+    previous: str | None = None
+    for event in events:
+        if event.prev_hash != previous:
+            return False
+        if _event_hash(event.model_copy(update={"hash": ""})) != event.hash:
+            return False
+        previous = event.hash
+    return True

@@ -2,10 +2,14 @@
 
 Tripwire is a deterministic enforcement layer for autonomous agent tool calls. It loads a trusted
 task contract, authorizes every protected tool call in code, records a hash-chained audit log, and
-replays incidents through local reporting surfaces.
+replays incidents through local reporting surfaces. It catches individual scope violations
+and suspicious call sequences that a single-call check would miss.
 
-No LLM is used in enforcement. The optional investigator can use Ollama, but falls back to a
-deterministic template report when no local model is available.
+No LLM is used in enforcement. The investigator defaults to local Ollama, supports local
+OpenAI-compatible model servers, and falls back to a deterministic template. Remote providers
+are optional and must be selected explicitly.
+
+![Tripwire architecture](docs/architecture.svg)
 
 ## Quickstart
 
@@ -15,6 +19,7 @@ make test
 make lint
 make eval
 make demo
+make live-demo  # optional Ollama; falls back to replay when unavailable
 make investigate
 make dashboard
 ```
@@ -28,7 +33,8 @@ hash-chained audit log each to `.tripwire/demo-<scenario>.jsonl`:
 | `slow_drift` | Legitimate reads, then repeated probes of Customer B, then exfiltration | `PAUSED` |
 | `escape` | Shell attempt, then exfiltration over HTTP and email | `KILLED` |
 
-`make investigate` writes an incident report per log (cached in `.tripwire/reports/`), and
+`make investigate` writes an incident report per log (verified model reports are cached in
+`.tripwire/reports/`; template reports are rebuilt), and
 `make dashboard` shows the timeline, blocked actions, report and eval metrics. Scenarios are
 synthetic fixtures in `examples/enterprise_agent/scenarios.json`.
 
@@ -55,8 +61,8 @@ synthetic fixtures in `examples/enterprise_agent/scenarios.json`.
 - Gateway-only mock tool service. Honeytoken matching happens in the gateway; the token list is
   never sent to the tool service.
 - Optional Ollama investigator, deterministic template fallback, and a citation verifier. A
-  model report with any invalid citation is replaced by the template. Reports are cached by the
-  audit log's final hash so the demo never waits on the model.
+  model report with any invalid citation is replaced by the template. Verified model reports
+  are cached by the audit log's final hash; template reports are rebuilt on each run.
 - Streamlit dashboard: containment banner, coloured timeline, blocked actions, ran-while-blocked
   counter, incident report and eval metrics.
 - Docker compose topology with an agent/gateway internal network and a separate gateway/tools
@@ -108,20 +114,61 @@ make mcp     # Tripwire MCP server on http://127.0.0.1:8081/mcp
 error carrying the decision and event ID. `--transport stdio` exists for local development, but
 it runs the gateway inside the client's process; use HTTP whenever the agent is sandboxed.
 
+## Live Demo
+
+`make live-demo` asks a local Ollama model to review the synthetic Customer A queue, including
+a decoy ticket. Each proposed tool call passes through the in-process gateway and is audited in
+`.tripwire/demo-live.jsonl`. The dashboard lists that log. If Ollama is unavailable, the command
+replays the `slow_drift` fixture offline. `make demo` always uses the deterministic replay; the
+mode can also be selected with `uv run python -m tripwire.demo --mode live`.
+
+The local live runner is a development demo, not the Docker-isolated agent. Use the Docker replay
+to demonstrate network isolation. A local Ollama runtime and a pulled small model are required
+for a real live-model run.
+
+## Audit Index
+
+`make audit-index` builds queryable SQLite indexes next to the demo JSONL logs. JSONL
+remains the source of truth; indexing verifies its hash chain and is never in the
+tool-authorization path.
+
 ## Investigator
 
 The investigator is optional and never in the allow/deny path. With no model it uses the
-template report. To use a local model:
+template report. Reports from model providers must pass citation verification before they are
+used; otherwise Tripwire falls back to the deterministic template.
+
+Use one or more providers with `--provider` or `TRIPWIRE_INVESTIGATOR_PROVIDERS`:
 
 ```bash
+# Ollama, including GLM model names with tags/colons.
 brew install ollama
 ollama pull qwen2.5:3b-instruct
+uv run python -m tripwire.investigation.cli --model qwen2.5:3b-instruct
+uv run python -m tripwire.investigation.cli --model glm4:9b  # after pulling this model
+
+# OpenAI-compatible local server; use its actual model ID.
+export TRIPWIRE_OPENAI_COMPAT_ENDPOINT=http://127.0.0.1:8000/v1/chat/completions
+uv run python -m tripwire.investigation.cli --provider openai-compatible:MODEL_ID
+
+# Ordered fallback chain.
+export TRIPWIRE_INVESTIGATOR_PROVIDERS=ollama:qwen2.5:3b-instruct,template
 make investigate
+
+# Optional remote Anthropic API, only with an explicit provider selection.
+export ANTHROPIC_API_KEY=...   # CLAUDE_API_KEY is also accepted
+uv run python -m tripwire.investigation.cli --provider anthropic:MODEL_ID
 ```
+
+The Anthropic API may incur charges and receives the complete audit events, including tool
+arguments. A remote OpenAI-compatible endpoint receives the same data. Use synthetic data only;
+neither remote provider is selected by default. `--model` selects an Ollama model and cannot be
+combined with `--provider`.
 
 ## Docker
 
-The compose topology is in `docker/compose.yaml`.
+The compose topology is in `docker/compose.yaml`. Gateway startup waits for the mock tools
+health check before accepting agent calls.
 
 ```bash
 make docker-build
@@ -142,7 +189,8 @@ internet are not.
 
 Tripwire detects a defined set of scope violations and suspicious sequences at the tool-call
 layer. It is one layer and does not replace OS, container or network isolation. Each gateway
-process enforces one contract for one session.
+process enforces one contract for one session. The local live demo's model may end before
+encountering the decoy; the replay fixtures give deterministic outcomes.
 
 ## Still Out Of Scope
 

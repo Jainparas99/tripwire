@@ -19,6 +19,7 @@ def build_template_report(events: list[AuditEvent]) -> IncidentReport:
             text=_claim_text(event),
             event_ids=(event.event_id,),
             tool=event.attempted.tool,
+            arguments=event.attempted.arguments,
         )
         for event in source_events
     )

@@ -1,4 +1,4 @@
-.PHONY: setup test lint eval demo investigate tools gateway mcp dashboard docker-build docker-up docker-down
+.PHONY: setup test lint eval demo live-demo investigate audit-index tools gateway mcp dashboard docker-build docker-up docker-down
 
 setup:
 	uv sync
@@ -16,8 +16,14 @@ eval:
 demo:
 	PYTHONPATH=src uv run python -m tripwire.demo
 
+live-demo:
+	PYTHONPATH=src uv run python -m tripwire.demo --mode live
+
 investigate:
 	PYTHONPATH=src uv run python -m tripwire.investigation.cli .tripwire/demo-*.jsonl
+
+audit-index:
+	PYTHONPATH=src uv run python -m tripwire.audit.index_cli .tripwire/demo-*.jsonl
 
 tools:
 	PYTHONPATH=src uv run python -m tripwire.tools.server --host 127.0.0.1 --port 9090

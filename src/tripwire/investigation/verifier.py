@@ -52,4 +52,11 @@ def _verify_claim(
             errors.append(
                 f"claim {index} says tool {claim.tool} but {event_id} used {event.attempted.tool}"
             )
+        if claim.arguments is not None:
+            for key, value in claim.arguments.items():
+                actual = event.attempted.arguments.get(key)
+                if actual != value:
+                    errors.append(
+                        f"claim {index} says {key}={value!r} but {event_id} used {actual!r}"
+                    )
     return errors

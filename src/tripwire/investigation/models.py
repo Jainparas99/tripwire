@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from typing import Any
+
 from pydantic import BaseModel, ConfigDict, Field
 
 
@@ -9,6 +11,7 @@ class Claim(BaseModel):
     text: str
     event_ids: tuple[str, ...] = Field(default_factory=tuple)
     tool: str | None = None
+    arguments: dict[str, Any] | None = None
     verified: bool | None = None
 
 

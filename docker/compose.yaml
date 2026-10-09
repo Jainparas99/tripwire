@@ -31,7 +31,8 @@ services:
       interval: 2s
       retries: 15
     depends_on:
-      - mock-tools
+      mock-tools:
+        condition: service_healthy
 
   mcp-gateway:
     build:
@@ -48,7 +49,8 @@ services:
       - agent_internal
       - tools_only
     depends_on:
-      - mock-tools
+      mock-tools:
+        condition: service_healthy
 
   mock-tools:
     build:
@@ -57,6 +59,10 @@ services:
     command: ["tripwire-tools", "--host", "0.0.0.0", "--port", "9090"]
     networks:
       - tools_only
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:9090/healthz', timeout=2)"]
+      interval: 2s
+      retries: 15
 
 networks:
   agent_internal:

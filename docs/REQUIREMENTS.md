@@ -39,7 +39,7 @@ Priorities: **M** must (demo fails without it), **S** should, **C** could (only 
 - **B (morning):** attack traces caught, benign set has 0 false blocks, eval table generated.
 - **C (event):** investigator report passes verifier; fallback works with Ollama off.
 - **D (event):** full 90-second demo runs three times, once with wifi off.
-- **E (submission):** README with honest limits and reproduce commands; backup video; tagged release.
+- **E (submission):** README with honest limits and reproduce commands; tagged release.
 
 ## 4. Tooling — all free / open source
 
@@ -60,7 +60,7 @@ Priorities: **M** must (demo fails without it), **S** should, **C** could (only 
 | Repo / CI | GitHub (free), GitHub Actions free tier | Private until employer question is settled |
 | Coding agents | Claude Code, Codex | Already available; no extra cost |
 
-No paid accounts are required. Optional cloud model keys are only for the agent under test, never for enforcement or the investigator.
+No paid accounts are required. Optional cloud model keys may be used for the agent under test or an explicitly selected remote investigator. The remote investigator receives full audit events, including tool arguments; use synthetic data only. Enforcement never calls a model.
 
 ## 5. Machine prerequisites to confirm tonight
 

@@ -1,0 +1,43 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 610" role="img" aria-labelledby="title desc">
+  <title id="title">Tripwire architecture</title>
+  <desc id="desc">A replay agent reaches only the gateway. The gateway authorizes calls before reaching mock tools, writes a hash-chained audit log, and supplies investigator and dashboard views.</desc>
+  <defs>
+    <marker id="arrow" markerWidth="9" markerHeight="9" refX="8" refY="4.5" orient="auto">
+      <path d="M0 0 L9 4.5 L0 9 Z" fill="#36434a"/>
+    </marker>
+  </defs>
+  <rect width="1024" height="610" fill="#ffffff"/>
+  <text x="40" y="44" font-family="Arial, sans-serif" font-size="26" font-weight="700" fill="#18262a">Tripwire</text>
+  <text x="40" y="68" font-family="Arial, sans-serif" font-size="14" fill="#526269">Deterministic enforcement at the tool boundary</text>
+  <rect x="36" y="92" width="632" height="224" rx="8" fill="#ebf6f2" stroke="#87c6b4" stroke-width="2" stroke-dasharray="7 5"/>
+  <rect x="390" y="92" width="598" height="224" rx="8" fill="#fff5e9" fill-opacity=".82" stroke="#ddad75" stroke-width="2" stroke-dasharray="7 5"/>
+  <text x="56" y="120" font-family="Arial, sans-serif" font-size="16" font-weight="700" fill="#27614e">agent_internal</text>
+  <text x="770" y="120" font-family="Arial, sans-serif" font-size="16" font-weight="700" fill="#945a25">tools_only</text>
+  <rect x="68" y="164" width="225" height="103" rx="8" fill="#ffffff" stroke="#7bafa0" stroke-width="2"/>
+  <text x="88" y="200" font-family="Arial, sans-serif" font-size="19" font-weight="700" fill="#18262a">Agent container</text>
+  <text x="88" y="225" font-family="Arial, sans-serif" font-size="14" fill="#526269">Scripted replay, no egress</text>
+  <text x="88" y="246" font-family="Arial, sans-serif" font-size="14" fill="#526269">Gateway is its only peer</text>
+  <rect x="402" y="151" width="231" height="129" rx="8" fill="#ffffff" stroke="#23765c" stroke-width="3"/>
+  <text x="424" y="190" font-family="Arial, sans-serif" font-size="19" font-weight="700" fill="#18262a">Gateway</text>
+  <text x="424" y="215" font-family="Arial, sans-serif" font-size="14" fill="#526269">authorize() + detectors</text>
+  <text x="424" y="237" font-family="Arial, sans-serif" font-size="14" fill="#526269">ALLOW / DENY</text>
+  <text x="424" y="259" font-family="Arial, sans-serif" font-size="14" fill="#526269">Containment state</text>
+  <rect x="743" y="164" width="213" height="103" rx="8" fill="#ffffff" stroke="#ca8b4c" stroke-width="2"/>
+  <text x="763" y="200" font-family="Arial, sans-serif" font-size="19" font-weight="700" fill="#18262a">Mock tools</text>
+  <text x="763" y="225" font-family="Arial, sans-serif" font-size="14" fill="#526269">Synthetic data only</text>
+  <text x="763" y="246" font-family="Arial, sans-serif" font-size="14" fill="#526269">Called only on ALLOW</text>
+  <path d="M293 215 H387" fill="none" stroke="#36434a" stroke-width="2.5" marker-end="url(#arrow)"/>
+  <path d="M633 215 H728" fill="none" stroke="#36434a" stroke-width="2.5" marker-end="url(#arrow)"/>
+  <rect x="401" y="369" width="233" height="86" rx="8" fill="#f2f6ff" stroke="#8098c2" stroke-width="2"/>
+  <text x="422" y="405" font-family="Arial, sans-serif" font-size="19" font-weight="700" fill="#18262a">Audit log</text>
+  <text x="422" y="430" font-family="Arial, sans-serif" font-size="14" fill="#526269">Hash-chained JSONL</text>
+  <path d="M517 280 V354" fill="none" stroke="#36434a" stroke-width="2.5" marker-end="url(#arrow)"/>
+  <rect x="79" y="510" width="269" height="73" rx="8" fill="#faf5ff" stroke="#a98bbd" stroke-width="2"/>
+  <text x="99" y="542" font-family="Arial, sans-serif" font-size="18" font-weight="700" fill="#18262a">Investigator</text>
+  <text x="99" y="565" font-family="Arial, sans-serif" font-size="14" fill="#526269">Local model or template</text>
+  <rect x="697" y="510" width="249" height="73" rx="8" fill="#f2f4f5" stroke="#91a3aa" stroke-width="2"/>
+  <text x="717" y="542" font-family="Arial, sans-serif" font-size="18" font-weight="700" fill="#18262a">Dashboard</text>
+  <text x="717" y="565" font-family="Arial, sans-serif" font-size="14" fill="#526269">Timeline + metrics</text>
+  <path d="M430 455 L292 501" fill="none" stroke="#36434a" stroke-width="2.5" marker-end="url(#arrow)"/>
+  <path d="M605 455 L739 501" fill="none" stroke="#36434a" stroke-width="2.5" marker-end="url(#arrow)"/>
+</svg>

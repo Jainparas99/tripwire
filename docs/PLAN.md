@@ -15,6 +15,7 @@ Target: an agent does a benign task through the gateway, fully logged.
 - [x] Python tool wrappers with 5 in-process mock tools and synthetic data (customers A/B, tickets, injection payload, honeytokens)
 - [x] Gateway `authorize()` with ALLOW/DENY only (contract tool + scope + destination checks)
 - [x] Audit log: JSONL, hash-chained, with `attempted`, `decision`, `containment_state`, `tool_executed`, `prev_hash`, `hash`
+- [x] Offline SQLite audit index rebuilt only from a verified JSONL chain
 - [x] Unit test: denied call never reaches the tool
 - [x] Scripted agent that replays a benign trace through the gateway
 - [x] Document Docker topology: agent and gateway share an internal network; mock tools are reachable only by gateway; agent has no internet
@@ -32,21 +33,20 @@ Target: attack traces get caught; benign traces don't.
 
 ### Checkpoint C — At the event (11:00–1:30): investigation
 - [x] Investigator prompt + JSON schema output via Ollama
-- [ ] Ollama installed, small model pulled, one test prompt works
+- [x] Ollama installed, small model pulled, one test prompt works
 - [x] Citation verifier (reject non-existent event IDs)
 - [x] Deterministic template fallback report
 - [x] Stage labels (recon → credential access → escape attempt → persistence)
-- [x] Cache reports from tonight so the demo never waits on the model
+- [x] Cache verified model reports by audit hash; rebuild template reports so a later model run is retried
 
 ### Checkpoint D — At the event (2:00–3:45): demo surface
 - [x] Streamlit: live timeline (green → amber → red → contained), blocked-action panel, "sensitive ops executed: 0", incident report, metrics table
-- [ ] Live mode: local model agent attempts the task against a decoy; replay mode as fallback toggle
+- [x] Live mode: local model agent attempts the task against a decoy; replay mode as fallback toggle
 - [ ] Dry-run the 90-second demo three times, including with wifi off
 
 ### Checkpoint E — 3:45–4:30: submission
-- [ ] README (what, why, honest limits, how to run, eval command, results)
-- [ ] 60-second backup demo video
-- [ ] Architecture diagram image
+- [x] README (what, why, honest limits, how to run, eval command, results)
+- [x] Architecture diagram image
 - [ ] Submission form; tag release `v0.1.0`
 
 ## What to skip (do not build before the demo works)

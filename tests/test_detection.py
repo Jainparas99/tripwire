@@ -90,6 +90,17 @@ def test_honeytoken_touch_kills_before_tool_execution(tmp_path: Path) -> None:
     assert audit_log.read_events()[0].tool_executed is False
 
 
+def test_honeytoken_kills_even_with_high_custom_thresholds(tmp_path: Path) -> None:
+    contract = _contract().model_copy(update={"thresholds": {"warn": 30, "pause": 60, "kill": 100}})
+    gateway, audit_log = _gateway(tmp_path, contract)
+
+    result = gateway.call_tool("read_ticket", {"customer_id": "A", "ticket_id": "T-A-102"})
+
+    assert result.decision.action is DecisionAction.DENY
+    assert result.decision.containment_state is ContainmentState.KILLED
+    assert audit_log.read_events()[0].tool_executed is False
+
+
 def test_retry_after_denial_pauses_session_and_blocks_later_calls(tmp_path: Path) -> None:
     gateway, audit_log = _gateway(tmp_path)
 

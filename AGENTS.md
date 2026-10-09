@@ -1,6 +1,6 @@
 # AGENTS.md — Tripwire (shared rules for Claude Code and Codex)
 
-Tripwire is an open-source runtime security engine for autonomous AI agents. It enforces a trusted task contract on every tool call, detects suspicious *sequences*, contains offending sessions, and reconstructs incidents with a local open-weight model. A future control plane ("SENTINEL") will manage many Tripwire engines; **do not build SENTINEL now**.
+Tripwire is an open-source runtime security engine for autonomous AI agents. It enforces a trusted task contract on every tool call, detects suspicious *sequences*, contains offending sessions, and reconstructs incidents with a local open-weight model by default. A future control plane ("SENTINEL") will manage many Tripwire engines; **do not build SENTINEL now**.
 
 Read first: `docs/DESIGN.md` (architecture), `docs/PLAN.md` (checkpoints), `docs/REQUIREMENTS.md` (acceptance criteria). Private context lives in `docs/internal/HANDOFF.md` (gitignored).
 
@@ -60,7 +60,7 @@ docs/            DESIGN, PLAN, REQUIREMENTS; docs/internal/ is private
 - No real exploits and no real network targets. Honeytokens are fake strings.
 - Do not weaken a test to make it pass; fix the code or raise the issue.
 - Never claim more than is true: Tripwire detects a *defined set* of violations; it is one layer and does not replace OS/network isolation; do not claim it would have stopped the July 2026 Hugging Face incident. Label recorded traces as fixtures.
-- Do not add dependencies with non-OSS licenses. Do not add paid services.
+- Do not add dependencies with non-OSS licenses. No paid service is required for the demo. Optional remote investigator APIs may be used only with an explicitly selected provider and synthetic audit data; they may incur charges and receive the full audit events.
 
 ## Definition of done (per task)
 

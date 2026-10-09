@@ -158,13 +158,14 @@ Score thresholds map to warn → pause → kill. Each individual action may look
 - Gateway enforcement continues if Ollama or any future control plane is down (fail closed).
 - Egress attempts are logged by the gateway **and** physically impossible at the network layer. This lets us answer "what about a real escape?" honestly: the tool layer is one control; the container is another.
 
-## 9. Investigator (open-weight, local)
+## 9. Investigator (local by default)
 
-- Runs via Ollama, offline. Default: a small Qwen instruct model that fits the laptop; swap via `TRIPWIRE_MODEL`. Verify the exact tag on the day.
-- Input: flagged events only (structured JSON), never raw tool output containing the injection payload as instructions.
+- Defaults to Ollama, offline, with a small Qwen instruct model that fits the laptop; swap via `TRIPWIRE_MODEL` or `--model`. Verify the exact tag on the day.
+- An explicit provider selection can use another local model server or a remote API. Remote APIs receive the complete structured audit events, including tool arguments; use synthetic data only.
+- Input: structured audit events, never raw tool output containing the injection payload as instructions.
 - Output (JSON): stage labels (recon / credential access / escape attempt / persistence), a plain-English timeline, severity, and a list of `claims[]` each with `event_ids[]`.
-- Verifier rejects claims citing non-existent events and marks them `UNVERIFIED` in the report.
-- Fallback: deterministic template report from detector output if Ollama is unavailable.
+- Verifier rejects reports with invalid event citations or contradicted tool arguments; an unverifiable model report is replaced by the template.
+- Fallback: deterministic template report from detector output if a model provider is unavailable. Only verified model reports are cached.
 - Story: Hugging Face needed a self-hosted model ready *before* the incident; Tripwire ships with one.
 
 ## 10. Evaluation

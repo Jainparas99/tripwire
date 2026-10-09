@@ -55,20 +55,54 @@ def main() -> None:
     scenarios = load_scenarios()
     parser = argparse.ArgumentParser(description="Replay scripted agent scenarios offline.")
     parser.add_argument("scenarios", nargs="*", help=f"default: all of {', '.join(scenarios)}")
+    parser.add_argument("--mode", choices=("replay", "live"), default="replay")
+    parser.add_argument("--model", help="local Ollama model for live mode")
+    parser.add_argument("--ollama-endpoint", help="Ollama /api/chat URL for live mode")
     args = parser.parse_args()
     unknown = sorted(set(args.scenarios) - set(scenarios))
     if unknown:
         parser.error(f"unknown scenario(s): {', '.join(unknown)}")
+    if args.mode == "live":
+        if args.scenarios:
+            parser.error("scenario names are only valid in replay mode")
+        from tripwire.live_demo import (
+            LocalModelUnavailable,
+            OllamaClient,
+            default_client,
+            run_live_demo,
+        )
+
+        client = default_client()
+        if args.model or args.ollama_endpoint:
+            client = OllamaClient(
+                model=args.model or client.model,
+                endpoint=args.ollama_endpoint or client.endpoint,
+            )
+        try:
+            live = run_live_demo(next_action=client.next_action)
+        except LocalModelUnavailable as exc:
+            print(f"Local model unavailable ({exc}); replaying slow_drift instead.")
+            args.scenarios = ["slow_drift"]
+        else:
+            print(f"\nLive local-model run  ->  {live.audit_path.relative_to(REPO_ROOT)}")
+            _print_rows(live.rows)
+            if live.final_answer:
+                print(f"\nModel summary: {live.final_answer}")
+            return
 
     for name in args.scenarios or list(scenarios):
         rows = replay_scenario(name)
         print(f"\n{scenarios[name]['title']}  ->  {demo_log_path(name).relative_to(REPO_ROOT)}")
-        for row in rows:
-            executed = "executed" if row["tool_executed"] else "not executed"
-            print(
-                f"  {row['event_id']}  {row['tool']:<14} {row['decision']:<5} "
-                f"{row['containment_state']:<7} score={row['score']:<3} {executed}"
-            )
+        _print_rows(rows)
+
+
+def _print_rows(rows: list[dict[str, Any]]) -> None:
+    for row in rows:
+        executed = "executed" if row["tool_executed"] else "not executed"
+        print(
+            f"  {row['event_id']}  {row['tool']:<14} {row['decision']:<5} "
+            f"{row['containment_state']:<7} score={row['score']:<3} {executed}"
+        )
 
 
 if __name__ == "__main__":

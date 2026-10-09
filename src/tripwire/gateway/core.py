@@ -104,7 +104,11 @@ class TripwireGateway:
         )
 
         self._score += sum(item.score for item in findings)
-        self._containment_state = containment_for_score(self._score, self._contract.thresholds)
+        self._containment_state = (
+            ContainmentState.KILLED
+            if any(item.reason_code == "HONEYTOKEN_TOUCH" for item in findings)
+            else containment_for_score(self._score, self._contract.thresholds)
+        )
 
         hard_deny = bool(policy_reason_codes)
         contained = self._containment_state in {ContainmentState.PAUSED, ContainmentState.KILLED}

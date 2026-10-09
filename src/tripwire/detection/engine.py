@@ -1,6 +1,9 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+from pathlib import Path
+
+import yaml
 
 from tripwire.audit.log import AuditEvent
 from tripwire.contracts.destinations import (
@@ -12,17 +15,41 @@ from tripwire.contracts.models import TaskContract, ToolCall
 from tripwire.gateway.models import ContainmentState
 from tripwire.tools.base import ToolRegistry
 
-DEFAULT_WEIGHTS: dict[str, int] = {
-    "CUSTOMER_SCOPE_VIOLATION": 3,
-    "TOOL_NOT_ALLOWED": 4,
-    "UNKNOWN_TOOL": 4,
-    "DESTINATION_NOT_ALLOWED": 5,
-    "MAX_ACTIONS_EXCEEDED": 2,
-    "HONEYTOKEN_TOUCH": 10,
-    "RETRY_AFTER_DENIAL": 3,
-    "ENUMERATION": 2,
-    "READ_THEN_SEND": 5,
-}
+
+def _load_detector_config() -> tuple[dict[str, int], dict[str, int]]:
+    path = Path(__file__).with_name("config.yaml")
+    raw = yaml.safe_load(path.read_text(encoding="utf-8"))
+    if not isinstance(raw, dict):
+        raise ValueError("detector config must be a mapping")
+    weights = raw.get("weights")
+    thresholds = raw.get("thresholds")
+    if not isinstance(weights, dict) or not isinstance(thresholds, dict):
+        raise ValueError("detector config needs weights and thresholds")
+    required = {
+        "CUSTOMER_SCOPE_VIOLATION",
+        "TOOL_NOT_ALLOWED",
+        "UNKNOWN_TOOL",
+        "DESTINATION_NOT_ALLOWED",
+        "MAX_ACTIONS_EXCEEDED",
+        "HONEYTOKEN_TOUCH",
+        "RETRY_AFTER_DENIAL",
+        "ENUMERATION",
+        "READ_THEN_SEND",
+    }
+    if set(weights) != required or any(
+        type(value) is not int or value <= 0 for value in weights.values()
+    ):
+        raise ValueError("detector weights must cover every reason with positive integers")
+    if set(thresholds) != {"warn", "pause", "kill"} or any(
+        type(value) is not int or value <= 0 for value in thresholds.values()
+    ):
+        raise ValueError("detector thresholds must be positive integers")
+    if not thresholds["warn"] < thresholds["pause"] < thresholds["kill"]:
+        raise ValueError("detector thresholds must increase from warn to kill")
+    return weights, thresholds
+
+
+DEFAULT_WEIGHTS, DEFAULT_THRESHOLDS = _load_detector_config()
 
 ENUMERATION_WINDOW = 6
 ENUMERATION_DISTINCT_RESOURCES = 3
@@ -65,9 +92,9 @@ def analyze_call(
 
 
 def containment_for_score(score: int, thresholds: dict[str, int]) -> ContainmentState:
-    kill = thresholds.get("kill", 10)
-    pause = thresholds.get("pause", 6)
-    warn = thresholds.get("warn", 3)
+    kill = thresholds.get("kill", DEFAULT_THRESHOLDS["kill"])
+    pause = thresholds.get("pause", DEFAULT_THRESHOLDS["pause"])
+    warn = thresholds.get("warn", DEFAULT_THRESHOLDS["warn"])
     if score >= kill:
         return ContainmentState.KILLED
     if score >= pause:

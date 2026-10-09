@@ -22,7 +22,7 @@ CONTRACT_FILE = ROOT / "examples/contracts/support_summary.yaml"
 STATE_COLOR = {"OK": "green", "WARN": "orange", "PAUSED": "red", "KILLED": "red"}
 STATE_LABEL = {"OK": "OK", "WARN": "WARN", "PAUSED": "PAUSED (contained)", "KILLED": "KILLED"}
 DECISION_COLOR = {"ALLOW": "green", "DENY": "red"}
-LOG_ORDER = ["demo-slow_drift", "demo-escape", "demo-benign", "gateway-audit"]
+LOG_ORDER = ["demo-live", "demo-slow_drift", "demo-escape", "demo-benign", "gateway-audit"]
 
 
 def main() -> None:
