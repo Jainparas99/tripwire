@@ -19,6 +19,9 @@ def verify_report(report: IncidentReport, events: list[AuditEvent]) -> Verificat
     invalid: list[str] = []
     verified_claims: list[Claim] = []
 
+    if not report.claims:
+        invalid.append("report contains no claims")
+
     for index, claim in enumerate(report.claims, start=1):
         claim_errors = _verify_claim(index=index, claim=claim, events_by_id=events_by_id)
         invalid.extend(claim_errors)
@@ -42,7 +45,6 @@ def _verify_claim(
     if not claim.event_ids:
         errors.append(f"claim {index} cites no events")
         return errors
-
     for event_id in claim.event_ids:
         event = events_by_id.get(event_id)
         if event is None:
@@ -59,4 +61,35 @@ def _verify_claim(
                     errors.append(
                         f"claim {index} says {key}={value!r} but {event_id} used {actual!r}"
                     )
+        if claim.decision is not None and claim.decision != event.decision:
+            errors.append(
+                f"claim {index} says decision {claim.decision} but {event_id} was {event.decision}"
+            )
+        if (
+            claim.containment_state is not None
+            and claim.containment_state != event.containment_state
+        ):
+            errors.append(
+                f"claim {index} says containment {claim.containment_state} but "
+                f"{event_id} was {event.containment_state}"
+            )
+        if claim.tool_invoked is not None and claim.tool_invoked != event.tool_invoked:
+            errors.append(
+                f"claim {index} says tool_invoked={claim.tool_invoked} but "
+                f"{event_id} was {event.tool_invoked}"
+            )
+        if claim.tool_completed is not None and claim.tool_completed != event.tool_completed:
+            errors.append(
+                f"claim {index} says tool_completed={claim.tool_completed} but "
+                f"{event_id} was {event.tool_completed}"
+            )
+        if claim.tool_executed is not None and claim.tool_executed != event.tool_executed:
+            errors.append(
+                f"claim {index} says tool_executed={claim.tool_executed} but "
+                f"{event_id} was {event.tool_executed}"
+            )
+    if claim.decision is None:
+        errors.append(f"claim {index} does not state the event decision")
+    if claim.tool_executed is None and claim.tool_completed is None:
+        errors.append(f"claim {index} does not state whether the tool executed")
     return errors

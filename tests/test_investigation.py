@@ -35,6 +35,15 @@ def test_template_report_claims_verify(tmp_path: Path) -> None:
     assert result.report.severity == "medium"
 
 
+def test_cache_key_is_stable_across_replays_with_new_timestamps(tmp_path: Path) -> None:
+    from tripwire.investigation.cache import cache_path
+
+    first = _events(tmp_path / "first")
+    second = _events(tmp_path / "second")
+
+    assert cache_path(first) == cache_path(second)
+
+
 def test_verifier_rejects_unknown_event_id(tmp_path: Path) -> None:
     events = _events(tmp_path)
     report = IncidentReport(
@@ -88,6 +97,43 @@ def test_verifier_rejects_argument_mismatch(tmp_path: Path) -> None:
     assert "customer_id" in result.invalid_claims[0]
 
 
+def test_verifier_rejects_contradictory_decision_and_execution_claim(tmp_path: Path) -> None:
+    events = _events(tmp_path)
+    report = IncidentReport(
+        report_id="bad",
+        severity="medium",
+        summary="bad facts",
+        claims=(
+            Claim(
+                text="tool ran and was allowed",
+                event_ids=(events[0].event_id,),
+                decision="ALLOW",
+                tool_executed=True,
+            ),
+        ),
+    )
+
+    result = verify_report(report, events)
+
+    assert not result.verified
+    assert any("decision" in error for error in result.invalid_claims)
+    assert any("tool_executed" in error for error in result.invalid_claims)
+
+
+def test_verifier_rejects_report_without_claims(tmp_path: Path) -> None:
+    events = _events(tmp_path)
+    report = IncidentReport(
+        report_id="empty",
+        severity="medium",
+        summary="no evidence",
+    )
+
+    result = verify_report(report, events)
+
+    assert not result.verified
+    assert result.invalid_claims == ("report contains no claims",)
+
+
 def test_rejected_model_report_falls_back_to_template(tmp_path: Path, monkeypatch) -> None:
     from tripwire.investigation import ollama
 
@@ -115,7 +161,15 @@ def test_verified_model_report_is_used(tmp_path: Path, monkeypatch) -> None:
         generator="ollama:test",
         severity="medium",
         summary="scope probe",
-        claims=(Claim(text="probed B", event_ids=(events[0].event_id,), tool="read_customer"),),
+        claims=(
+            Claim(
+                text="probed B",
+                event_ids=(events[0].event_id,),
+                tool="read_customer",
+                decision="DENY",
+                tool_executed=False,
+            ),
+        ),
     )
     monkeypatch.setattr(ollama, "build_ollama_report", lambda **_kwargs: good)
 
@@ -143,14 +197,16 @@ def test_template_report_is_rebuilt_when_model_becomes_available(
 
     first = cache.load_or_build_report(events=events, model="glm4:9b", cache_dir=cache_dir)
     assert first.generator == "template"
-    assert not path.exists()
+    assert path.exists()
 
-    second = cache.load_or_build_report(events=events, model="glm4:9b", cache_dir=cache_dir)
+    second = cache.load_or_build_report(
+        events=events, model="glm4:9b", cache_dir=cache_dir, refresh=True
+    )
     third = cache.load_or_build_report(events=events, model="glm4:9b", cache_dir=cache_dir)
 
     assert second.generator == third.generator == "ollama:glm4:9b"
     assert len(calls) == 2
-    assert path.name == f"{events[-1].hash}.json"
+    assert path == cache.cache_path(events, cache_dir)
 
 
 def test_legacy_template_cache_is_ignored_and_model_change_rebuilds(
@@ -173,8 +229,12 @@ def test_legacy_template_cache_is_ignored_and_model_change_rebuilds(
 
     monkeypatch.setattr(cache, "build_report_with_providers", fake_build)
 
-    first = cache.load_or_build_report(events=events, model="qwen", cache_dir=cache_dir)
-    second = cache.load_or_build_report(events=events, model="glm4:9b", cache_dir=cache_dir)
+    first = cache.load_or_build_report(
+        events=events, model="qwen", cache_dir=cache_dir, refresh=True
+    )
+    second = cache.load_or_build_report(
+        events=events, model="glm4:9b", cache_dir=cache_dir, refresh=True
+    )
     third = cache.load_or_build_report(events=events, model="glm4:9b", cache_dir=cache_dir)
 
     assert first.generator == "ollama:qwen"

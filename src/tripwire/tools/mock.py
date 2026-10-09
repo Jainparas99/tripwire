@@ -4,6 +4,7 @@ from collections.abc import Callable
 from typing import Any
 
 from tripwire.contracts.models import ToolCall
+from tripwire.tools.base import TOOL_ARGUMENTS
 
 ToolImpl = Callable[[dict[str, Any]], dict[str, Any]]
 
@@ -86,6 +87,9 @@ class MockToolRegistry:
 
     def has_tool(self, name: str) -> bool:
         return name in self._tools
+
+    def allowed_arguments(self, name: str) -> frozenset[str]:
+        return TOOL_ARGUMENTS.get(name, frozenset())
 
     def validate(self, call: ToolCall) -> str | None:
         try:

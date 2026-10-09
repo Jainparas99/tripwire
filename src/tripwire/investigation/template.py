@@ -20,6 +20,11 @@ def build_template_report(events: list[AuditEvent]) -> IncidentReport:
             event_ids=(event.event_id,),
             tool=event.attempted.tool,
             arguments=event.attempted.arguments,
+            decision=event.decision,
+            containment_state=event.containment_state,
+            tool_invoked=event.tool_invoked,
+            tool_completed=event.tool_completed,
+            tool_executed=event.tool_executed,
         )
         for event in source_events
     )

@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import hashlib
+import json
 from pathlib import Path
 
 from tripwire.audit import AuditEvent
@@ -15,8 +17,21 @@ DEFAULT_CACHE_DIR = Path(".tripwire/reports")
 
 
 def cache_path(events: list[AuditEvent], cache_dir: Path = DEFAULT_CACHE_DIR) -> Path:
-    """Reports are keyed by the log's final chain hash, so any change to the log misses."""
-    key = events[-1].hash if events else "empty"
+    """Return a stable report path for the same audited behavior across replays.
+
+    Timestamps and chain-link hashes are intentionally excluded because deterministic
+    replays produce the same behavior with different timestamps.
+    """
+    payload = [
+        event.model_dump(mode="json", exclude={"ts", "prev_hash", "hash"}) for event in events
+    ]
+    key = (
+        hashlib.sha256(
+            json.dumps(payload, sort_keys=True, separators=(",", ":")).encode("utf-8")
+        ).hexdigest()
+        if payload
+        else "empty"
+    )
     return cache_dir / f"{key}.json"
 
 
@@ -32,9 +47,10 @@ def load_cached_report(
         report = IncidentReport.model_validate_json(path.read_text(encoding="utf-8"))
     except ValueError:
         return None
-    if report.generator == "template" or (
-        preferred_generator is not None and report.generator != preferred_generator
-    ):
+    if preferred_generator is not None and report.generator not in {
+        preferred_generator,
+        "template",
+    }:
         return None
     return report if verify_report(report, events).verified else None
 
@@ -60,8 +76,7 @@ def load_or_build_report(
         if cached is not None:
             return cached
     report = build_report_with_providers(events=events, providers=chain, timeout=timeout)
-    if report.generator != "template":
-        path = cache_path(events, cache_dir)
-        path.parent.mkdir(parents=True, exist_ok=True)
-        path.write_text(report.model_dump_json(indent=2), encoding="utf-8")
+    path = cache_path(events, cache_dir)
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(report.model_dump_json(indent=2), encoding="utf-8")
     return report

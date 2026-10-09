@@ -160,10 +160,12 @@ def build_investigator_prompt(events: list[AuditEvent]) -> str:
         "You are Tripwire's incident investigator. Return only JSON matching this schema: "
         "{report_id:string,severity:string,summary:string,stage_labels:string[],"
         "timeline:string[],claims:{text:string,event_ids:string[],tool:string|null,"
-        "arguments:object|null}[]}. "
+        "arguments:object|null,decision:string|null,containment_state:string|null,"
+        "tool_invoked:boolean|null,tool_completed:boolean|null,tool_executed:boolean|null}[]}. "
         "Use short timeline strings and at most three claims, focusing on denied or flagged "
         "events. Every claim must cite real event_ids from the provided events and must not "
-        "invent tools, arguments, destinations, or containment states. Events: "
+        "invent tools, arguments, destinations, decisions, execution states, or containment "
+        "states. Copy decision and execution fields exactly from the cited event. Events: "
         f"{json.dumps(event_json, sort_keys=True)}"
     )
 

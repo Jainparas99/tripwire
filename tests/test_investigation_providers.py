@@ -76,6 +76,11 @@ def test_openai_compatible_provider_accepts_glm_style_response(tmp_path: Path, m
                 "event_ids": [event_id],
                 "tool": "read_customer",
                 "arguments": {"customer_id": "B"},
+                "decision": "DENY",
+                "containment_state": "WARN",
+                "tool_invoked": False,
+                "tool_completed": False,
+                "tool_executed": False,
             }
         ],
     }

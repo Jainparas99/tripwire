@@ -56,17 +56,20 @@ def test_allowed_call_executes_tool_and_audits(tmp_path: Path) -> None:
     assert event.untrusted_content_seen is True
 
 
-def test_authorize_is_a_state_free_preview(tmp_path: Path) -> None:
+def test_authorize_commits_and_audits_without_running_tool(tmp_path: Path) -> None:
     gateway, tools, audit_log = _gateway(tmp_path)
 
-    preview = gateway.authorize(ToolCall(tool="read_customer", arguments={"customer_id": "B"}))
+    decision = gateway.authorize(ToolCall(tool="read_customer", arguments={"customer_id": "B"}))
 
-    assert preview.action is DecisionAction.DENY
-    assert preview.score == 3
-    assert gateway.seq == 0
-    assert audit_log.read_events() == []
+    assert decision.action is DecisionAction.DENY
+    assert decision.score == 3
+    assert gateway.seq == 1
+    event = audit_log.read_events()[0]
+    assert event.decision is DecisionAction.DENY
+    assert event.tool_invoked is False
+    assert event.tool_completed is False
     assert tools.call_counts["read_customer"] == 0
-    assert gateway.call_tool("read_customer", {"customer_id": "A"}).decision.score == 0
+    assert gateway.call_tool("read_customer", {"customer_id": "A"}).decision.score == 3
 
 
 def test_failed_tool_invocation_is_audited_separately_from_completion(tmp_path: Path) -> None:
@@ -85,6 +88,33 @@ def test_failed_tool_invocation_is_audited_separately_from_completion(tmp_path: 
     assert event.tool_invoked is True
     assert event.tool_completed is False
     assert event.tool_executed is False
+
+
+def test_unknown_tool_arguments_are_denied(tmp_path: Path) -> None:
+    gateway, tools, _audit_log = _gateway(
+        tmp_path, _contract().model_copy(update={"allowed_tools": frozenset({"send_email"})})
+    )
+
+    result = gateway.call_tool(
+        "send_email",
+        {"to": "lead@support.example", "subject": "summary", "bcc": "drop@exfil.example"},
+    )
+
+    assert result.decision.action is DecisionAction.DENY
+    assert "UNKNOWN_ARGUMENTS" in result.decision.reason_codes
+    assert tools.call_counts["send_email"] == 0
+
+
+def test_source_resource_is_not_agent_controlled(tmp_path: Path) -> None:
+    gateway, _tools, audit_log = _gateway(tmp_path)
+
+    gateway.call_tool(
+        "read_customer",
+        {"customer_id": "A", "source_resource": "docs:harmless"},
+    )
+
+    event = audit_log.read_events()[0]
+    assert event.source_resource == "customer_id:A"
 
 
 def test_denied_scope_call_never_invokes_tool(tmp_path: Path) -> None:
@@ -150,7 +180,7 @@ def test_every_destination_argument_must_be_allowed(tmp_path: Path) -> None:
     )
 
     assert result.decision.action is DecisionAction.DENY
-    assert result.decision.reason_codes == ("DESTINATION_NOT_ALLOWED",)
+    assert set(result.decision.reason_codes) == {"UNKNOWN_ARGUMENTS", "DESTINATION_NOT_ALLOWED"}
     assert tools.call_counts["send_email"] == 0
 
 

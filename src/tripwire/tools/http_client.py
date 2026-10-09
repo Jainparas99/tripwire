@@ -5,6 +5,7 @@ from typing import Any
 from urllib.request import Request, urlopen
 
 from tripwire.contracts.models import ToolCall
+from tripwire.tools.base import TOOL_ARGUMENTS
 
 
 class HttpToolRegistry:
@@ -17,6 +18,9 @@ class HttpToolRegistry:
     def has_tool(self, name: str) -> bool:
         response = self._post("/tools/has", {"tool": name})
         return bool(response["has_tool"])
+
+    def allowed_arguments(self, name: str) -> frozenset[str]:
+        return TOOL_ARGUMENTS.get(name, frozenset())
 
     def validate(self, call: ToolCall) -> str | None:
         response = self._post("/tools/validate", call.model_dump(mode="json"))

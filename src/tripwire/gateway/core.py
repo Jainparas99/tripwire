@@ -47,16 +47,13 @@ class TripwireGateway:
         return self._seq
 
     def authorize(self, call: ToolCall) -> Decision:
-        """Preview a decision without changing session state or writing an audit event.
-
-        Tool execution must use :meth:`call_tool`, which commits the decision and
-        appends the corresponding audit event. Keeping this method side-effect free
-        prevents callers from changing containment state without evidence.
-        """
+        """Authorize and audit an attempted call without executing its tool."""
         with self._lock:
-            return self._authorize(call, commit_state=False)
+            decision = self._authorize(call)
+            self._append_audit_event(call=call, decision=decision)
+            return decision
 
-    def _authorize(self, call: ToolCall, *, commit_state: bool = True) -> Decision:
+    def _authorize(self, call: ToolCall) -> Decision:
         if self._containment_state in {ContainmentState.PAUSED, ContainmentState.KILLED}:
             return Decision.deny(
                 f"SESSION_{self._containment_state.value}",
@@ -73,6 +70,12 @@ class TripwireGateway:
             else:
                 if call.tool not in self._contract.allowed_tools:
                     policy_reason_codes.append("TOOL_NOT_ALLOWED")
+
+                unknown_arguments = set(call.arguments) - set(
+                    self._tools.allowed_arguments(call.tool)
+                )
+                if unknown_arguments:
+                    policy_reason_codes.append("UNKNOWN_ARGUMENTS")
 
                 validation_reason = self._tools.validate(call)
                 if validation_reason is not None:
@@ -118,9 +121,8 @@ class TripwireGateway:
             else containment_for_score(next_score, self._contract.thresholds)
         )
 
-        if commit_state:
-            self._score = next_score
-            self._containment_state = next_containment_state
+        self._score = next_score
+        self._containment_state = next_containment_state
 
         hard_deny = bool(policy_reason_codes)
         contained = next_containment_state in {ContainmentState.PAUSED, ContainmentState.KILLED}
@@ -163,8 +165,26 @@ class TripwireGateway:
                     score=self._score,
                 )
 
+        event = self._append_audit_event(
+            call=call,
+            decision=decision,
+            tool_invoked=tool_invoked,
+            tool_completed=tool_completed,
+            data=data,
+        )
+        return GatewayResult(decision=decision, data=data, event_id=event.event_id)
+
+    def _append_audit_event(
+        self,
+        *,
+        call: ToolCall,
+        decision: Decision,
+        tool_invoked: bool = False,
+        tool_completed: bool = False,
+        data: dict[str, Any] | None = None,
+    ):
         self._seq += 1
-        event = self._audit_log.append(
+        return self._audit_log.append(
             session_id=self._session_id,
             task_id=self._contract.task_id,
             contract_hash=self._contract.contract_hash,
@@ -178,7 +198,6 @@ class TripwireGateway:
             sensitivity=_sensitivity(call),
             untrusted_content_seen=tool_completed and data is not None,
         )
-        return GatewayResult(decision=decision, data=data, event_id=event.event_id)
 
     def reject_malformed(self, raw: object, reason: str = "MALFORMED_REQUEST") -> GatewayResult:
         """Audit a request that could not be parsed into a tool call. It is always denied."""
@@ -189,16 +208,7 @@ class TripwireGateway:
                 containment_state=self._containment_state,
                 score=self._score,
             )
-            self._seq += 1
-            event = self._audit_log.append(
-                session_id=self._session_id,
-                task_id=self._contract.task_id,
-                contract_hash=self._contract.contract_hash,
-                seq=self._seq,
-                attempted=call,
-                decision=decision,
-                tool_executed=False,
-            )
+            event = self._append_audit_event(call=call, decision=decision)
             return GatewayResult(decision=decision, data=None, event_id=event.event_id)
 
     def _scope_violation(self, call: ToolCall) -> str | None:
@@ -224,7 +234,7 @@ class TripwireGateway:
 
 
 def _source_resource(call: ToolCall) -> str | None:
-    for key in ("source_resource", "ticket_id", "customer_id", "query", "url", "to"):
+    for key in ("ticket_id", "customer_id", "query", "url", "to"):
         value = call.arguments.get(key)
         if isinstance(value, str) and value:
             return f"{key}:{value}"

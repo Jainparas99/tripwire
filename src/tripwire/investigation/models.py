@@ -4,6 +4,8 @@ from typing import Any
 
 from pydantic import BaseModel, ConfigDict, Field
 
+from tripwire.gateway.models import ContainmentState, DecisionAction
+
 
 class Claim(BaseModel):
     model_config = ConfigDict(extra="forbid", frozen=True)
@@ -12,6 +14,11 @@ class Claim(BaseModel):
     event_ids: tuple[str, ...] = Field(default_factory=tuple)
     tool: str | None = None
     arguments: dict[str, Any] | None = None
+    decision: DecisionAction | None = None
+    containment_state: ContainmentState | None = None
+    tool_invoked: bool | None = None
+    tool_completed: bool | None = None
+    tool_executed: bool | None = None
     verified: bool | None = None
 
 
