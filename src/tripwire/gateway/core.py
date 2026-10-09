@@ -10,6 +10,8 @@ from tripwire.detection import analyze_call, containment_for_score
 from tripwire.gateway.models import ContainmentState, Decision, DecisionAction, GatewayResult
 from tripwire.tools.mock import MockToolRegistry
 
+MALFORMED_TOOL = "<malformed>"
+
 
 class TripwireGateway:
     """Deterministic enforcement point for all protected tool calls."""
@@ -149,6 +151,27 @@ class TripwireGateway:
             tool_executed=tool_executed,
         )
         return GatewayResult(decision=decision, data=data, event_id=event.event_id)
+
+    def reject_malformed(self, raw: object, reason: str = "MALFORMED_REQUEST") -> GatewayResult:
+        """Audit a request that could not be parsed into a tool call. It is always denied."""
+        with self._lock:
+            call = ToolCall(tool=MALFORMED_TOOL, arguments={"raw": repr(raw)[:500]})
+            decision = Decision.deny(
+                reason,
+                containment_state=self._containment_state,
+                score=self._score,
+            )
+            self._seq += 1
+            event = self._audit_log.append(
+                session_id=self._session_id,
+                task_id=self._contract.task_id,
+                contract_hash=self._contract.contract_hash,
+                seq=self._seq,
+                attempted=call,
+                decision=decision,
+                tool_executed=False,
+            )
+            return GatewayResult(decision=decision, data=None, event_id=event.event_id)
 
     def _scope_violation(self, call: ToolCall) -> str | None:
         expected_customer = self._contract.scope.get("customer_id")

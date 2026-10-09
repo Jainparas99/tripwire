@@ -6,14 +6,13 @@ from tripwire.gateway import TripwireGateway
 
 
 def handle_tool_call(gateway: TripwireGateway, payload: dict[str, Any]) -> dict[str, Any]:
+    """Run one tool call. Malformed payloads are denied and audited, never dropped."""
     tool = payload.get("tool")
     arguments = payload.get("arguments", {})
-    if not isinstance(tool, str) or not tool:
-        raise ValueError("payload.tool must be a non-empty string")
-    if not isinstance(arguments, dict):
-        raise ValueError("payload.arguments must be an object")
-
-    result = gateway.call_tool(tool, arguments)
+    if not isinstance(tool, str) or not tool or not isinstance(arguments, dict):
+        result = gateway.reject_malformed(payload)
+    else:
+        result = gateway.call_tool(tool, arguments)
     return {
         "event_id": result.event_id,
         "decision": result.decision.model_dump(mode="json"),
@@ -30,11 +29,9 @@ def handle_json_rpc(gateway: TripwireGateway, payload: dict[str, Any]) -> dict[s
 
     params = payload.get("params")
     if not isinstance(params, dict):
+        gateway.reject_malformed(payload)
         return _error(request_id, -32602, "params must be an object")
-    try:
-        return {"jsonrpc": "2.0", "id": request_id, "result": handle_tool_call(gateway, params)}
-    except ValueError as exc:
-        return _error(request_id, -32602, str(exc))
+    return {"jsonrpc": "2.0", "id": request_id, "result": handle_tool_call(gateway, params)}
 
 
 def _error(request_id: object, code: int, message: str) -> dict[str, Any]:

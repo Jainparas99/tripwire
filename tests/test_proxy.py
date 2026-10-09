@@ -103,3 +103,44 @@ def test_concurrent_http_calls_keep_one_ordered_hash_chain(tmp_path: Path) -> No
     assert [event.seq for event in events] == list(range(1, 41))
     assert audit_log.verify_chain()
     assert actions.count("ALLOW") == 25
+
+
+def test_malformed_tool_call_is_denied_and_audited(tmp_path: Path) -> None:
+    gateway, tools = _gateway(tmp_path)
+
+    result = handle_tool_call(gateway, {"tool": "read_customer", "arguments": "customer B"})
+
+    assert result["decision"]["action"] == "DENY"
+    assert result["decision"]["reason_codes"] == ["MALFORMED_REQUEST"]
+    assert tools.call_counts["read_customer"] == 0
+    events = gateway._audit_log.read_events()
+    assert len(events) == 1
+    assert events[0].tool_executed is False
+    assert "customer B" in events[0].attempted.arguments["raw"]
+
+
+def test_non_json_http_body_is_audited(tmp_path: Path) -> None:
+    from threading import Thread
+    from urllib.error import HTTPError
+    from urllib.request import Request, urlopen
+
+    import pytest
+
+    from tripwire.proxy.server import make_server
+
+    gateway, _tools = _gateway(tmp_path)
+    server = make_server(host="127.0.0.1", port=0, gateway=gateway)
+    thread = Thread(target=server.serve_forever, daemon=True)
+    thread.start()
+    try:
+        url = f"http://127.0.0.1:{server.server_address[1]}/tool-call"
+        with pytest.raises(HTTPError) as excinfo:
+            urlopen(Request(url, data=b"not json {", method="POST"), timeout=5)
+        assert excinfo.value.code == 400
+    finally:
+        server.shutdown()
+        thread.join(timeout=5)
+
+    events = gateway._audit_log.read_events()
+    assert [event.reason_codes for event in events] == [("MALFORMED_REQUEST",)]
+    assert gateway._audit_log.verify_chain()

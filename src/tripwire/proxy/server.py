@@ -9,7 +9,7 @@ from typing import Any
 
 from tripwire.audit import AuditLog
 from tripwire.contracts import load_task_contract
-from tripwire.gateway import TripwireGateway
+from tripwire.gateway import GatewayResult, TripwireGateway
 from tripwire.proxy import handle_json_rpc, handle_tool_call
 from tripwire.tools import HttpToolRegistry, MockToolRegistry
 
@@ -59,17 +59,24 @@ def make_server(
             _write_json(self, 404, {"error": "not found"})
 
         def do_POST(self) -> None:
-            try:
-                payload = _read_json(self)
-                if self.path == "/tool-call":
-                    _write_json(self, 200, handle_tool_call(gateway, payload))
-                    return
-                if self.path == "/jsonrpc":
-                    _write_json(self, 200, handle_json_rpc(gateway, payload))
-                    return
+            if self.path not in {"/tool-call", "/jsonrpc"}:
                 _write_json(self, 404, {"error": "not found"})
-            except ValueError as exc:
-                _write_json(self, 400, {"error": str(exc)})
+                return
+            raw = _read_body(self)
+            try:
+                payload = json.loads(raw.decode("utf-8"))
+            except (UnicodeDecodeError, ValueError):
+                payload = None
+            if not isinstance(payload, dict):
+                result = gateway.reject_malformed(raw)
+                _write_json(
+                    self, 400, {"error": "request body must be a JSON object", **_dump(result)}
+                )
+                return
+            if self.path == "/tool-call":
+                _write_json(self, 200, handle_tool_call(gateway, payload))
+            else:
+                _write_json(self, 200, handle_json_rpc(gateway, payload))
 
         def log_message(self, format: str, *args: object) -> None:
             return
@@ -82,13 +89,19 @@ class _Server(ThreadingHTTPServer):
     request_queue_size = 128
 
 
-def _read_json(handler: BaseHTTPRequestHandler) -> dict[str, Any]:
-    length = int(handler.headers.get("content-length", "0"))
-    raw = handler.rfile.read(length)
-    payload = json.loads(raw.decode("utf-8"))
-    if not isinstance(payload, dict):
-        raise ValueError("request body must be a JSON object")
-    return payload
+MAX_BODY_BYTES = 1_000_000
+
+
+def _read_body(handler: BaseHTTPRequestHandler) -> bytes:
+    try:
+        length = int(handler.headers.get("content-length", "0"))
+    except ValueError:
+        length = 0
+    return handler.rfile.read(max(0, min(length, MAX_BODY_BYTES)))
+
+
+def _dump(result: GatewayResult) -> dict[str, Any]:
+    return {"event_id": result.event_id, "decision": result.decision.model_dump(mode="json")}
 
 
 def _write_json(handler: BaseHTTPRequestHandler, status: int, payload: dict[str, Any]) -> None:
