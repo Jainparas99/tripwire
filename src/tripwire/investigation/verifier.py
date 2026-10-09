@@ -4,6 +4,7 @@ from pydantic import BaseModel, ConfigDict, Field
 
 from tripwire.audit import AuditEvent
 from tripwire.investigation.models import Claim, IncidentReport
+from tripwire.investigation.template import build_template_report
 
 
 class VerificationResult(BaseModel):
@@ -27,7 +28,14 @@ def verify_report(report: IncidentReport, events: list[AuditEvent]) -> Verificat
         invalid.extend(claim_errors)
         verified_claims.append(claim.model_copy(update={"verified": not claim_errors}))
 
-    verified_report = report.model_copy(update={"claims": tuple(verified_claims)})
+    deterministic = build_template_report(events)
+    verified_report = report.model_copy(
+        update={
+            "claims": tuple(verified_claims),
+            "severity": deterministic.severity,
+            "stage_labels": deterministic.stage_labels,
+        }
+    )
     return VerificationResult(
         verified=not invalid,
         invalid_claims=tuple(invalid),

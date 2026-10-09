@@ -11,6 +11,7 @@ from tripwire.investigation.providers import (
     build_report_with_providers,
     provider_chain_from_env,
 )
+from tripwire.investigation.template import build_template_report
 from tripwire.investigation.verifier import verify_report
 
 DEFAULT_CACHE_DIR = Path(".tripwire/reports")
@@ -64,6 +65,12 @@ def load_or_build_report(
     timeout: float = 60,
     refresh: bool = False,
 ) -> IncidentReport:
+    if not any(event.decision == "DENY" for event in events):
+        report = build_template_report(events)
+        path = cache_path(events, cache_dir)
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text(report.model_dump_json(indent=2), encoding="utf-8")
+        return report
     chain = providers or (
         (ProviderSpec(kind="ollama", model=model), ProviderSpec(kind="template"))
         if model

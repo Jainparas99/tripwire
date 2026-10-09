@@ -64,6 +64,8 @@ def build_report_with_providers(
     providers: tuple[ProviderSpec, ...] | None = None,
     timeout: float = 20,
 ) -> IncidentReport:
+    if not any(event.decision == "DENY" for event in events):
+        return build_template_report(events)
     chain = providers or provider_chain_from_env()
     errors: list[str] = []
     for provider in chain:

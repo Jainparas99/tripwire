@@ -4,6 +4,7 @@ from tripwire.audit import AuditLog
 from tripwire.contracts import TaskContract
 from tripwire.gateway import TripwireGateway
 from tripwire.investigation import Claim, IncidentReport, build_template_report, verify_report
+from tripwire.investigation.providers import ProviderSpec, build_report_with_providers
 
 
 def _events(tmp_path: Path):
@@ -132,6 +133,46 @@ def test_verifier_rejects_report_without_claims(tmp_path: Path) -> None:
 
     assert not result.verified
     assert result.invalid_claims == ("report contains no claims",)
+
+
+def test_verifier_derives_severity_and_stages_from_events(tmp_path: Path) -> None:
+    events = _events(tmp_path)
+    template = build_template_report(events)
+    report = template.model_copy(
+        update={"severity": "critical", "stage_labels": ("Data Exfiltration",)}
+    )
+
+    verified = verify_report(report, events)
+
+    assert verified.verified
+    assert verified.report.severity == template.severity
+    assert verified.report.stage_labels == template.stage_labels
+
+
+def test_benign_sessions_skip_model_investigation(tmp_path: Path, monkeypatch) -> None:
+    contract = TaskContract(
+        task_id="benign-investigation",
+        description="Read Customer A",
+        principal="tester",
+        scope={"customer_id": "A"},
+        allowed_tools=frozenset({"read_customer"}),
+        max_actions=2,
+    )
+    audit = AuditLog(tmp_path / "audit.jsonl", reset=True)
+    gateway = TripwireGateway(contract=contract, audit_log=audit)
+    gateway.call_tool("read_customer", {"customer_id": "A"})
+
+    def fail_if_called(**_kwargs):
+        raise AssertionError("model provider should not run for a benign session")
+
+    monkeypatch.setattr("tripwire.investigation.providers._build_provider_report", fail_if_called)
+    report = build_report_with_providers(
+        events=audit.read_events(),
+        providers=(ProviderSpec(kind="ollama", model="qwen"),),
+    )
+
+    assert report.generator == "template"
+    assert report.severity == "informational"
 
 
 def test_rejected_model_report_falls_back_to_template(tmp_path: Path, monkeypatch) -> None:
