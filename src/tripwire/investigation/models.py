@@ -16,6 +16,7 @@ class IncidentReport(BaseModel):
     model_config = ConfigDict(extra="forbid", frozen=True)
 
     report_id: str
+    generator: str = "template"
     severity: str
     summary: str
     stage_labels: tuple[str, ...] = Field(default_factory=tuple)

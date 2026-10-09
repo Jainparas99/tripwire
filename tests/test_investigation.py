@@ -64,3 +64,58 @@ def test_verifier_rejects_tool_mismatch(tmp_path: Path) -> None:
 
     assert not result.verified
     assert "http_post" in result.invalid_claims[0]
+
+
+def test_rejected_model_report_falls_back_to_template(tmp_path: Path, monkeypatch) -> None:
+    from tripwire.investigation import ollama
+
+    events = _events(tmp_path)
+    hallucinated = IncidentReport(
+        report_id="model",
+        severity="critical",
+        summary="made up",
+        claims=(Claim(text="exfiltrated data", event_ids=("evt_999999",)),),
+    )
+    monkeypatch.setattr(ollama, "build_ollama_report", lambda **_kwargs: hallucinated)
+
+    report = ollama.build_report_with_fallback(events=events)
+
+    assert report.generator == "template"
+    assert verify_report(report, events).verified
+
+
+def test_verified_model_report_is_used(tmp_path: Path, monkeypatch) -> None:
+    from tripwire.investigation import ollama
+
+    events = _events(tmp_path)
+    good = IncidentReport(
+        report_id="model",
+        generator="ollama:test",
+        severity="medium",
+        summary="scope probe",
+        claims=(Claim(text="probed B", event_ids=(events[0].event_id,), tool="read_customer"),),
+    )
+    monkeypatch.setattr(ollama, "build_ollama_report", lambda **_kwargs: good)
+
+    assert ollama.build_report_with_fallback(events=events).generator == "ollama:test"
+
+
+def test_report_cache_is_reused_and_keyed_by_chain_hash(tmp_path: Path, monkeypatch) -> None:
+    from tripwire.investigation import cache
+
+    events = _events(tmp_path)
+    calls: list[int] = []
+
+    def fake_build(**kwargs):
+        calls.append(1)
+        return build_template_report(kwargs["events"])
+
+    monkeypatch.setattr(cache, "build_report_with_fallback", fake_build)
+    cache_dir = tmp_path / "reports"
+
+    first = cache.load_or_build_report(events=events, model="m", cache_dir=cache_dir)
+    second = cache.load_or_build_report(events=events, model="m", cache_dir=cache_dir)
+
+    assert first == second
+    assert len(calls) == 1
+    assert cache.cache_path(events, cache_dir).name == f"{events[-1].hash}.json"
