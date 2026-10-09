@@ -9,15 +9,15 @@ Rule: **depth over breadth.** One thing built properly. No scope added after Che
 
 ### Checkpoint A — Tonight: skeleton that runs end to end
 Target: an agent does a benign task through the gateway, fully logged.
-- [ ] Repo scaffold per `AGENTS.md` layout (`uv`, `pyproject.toml`, `Makefile`, `ruff`, `pytest`, `pre-commit`, MIT license, `.gitignore` incl. `docs/internal/`)
-- [ ] Pydantic models: `TaskContract`, `ToolCall`, `Decision`, `AuditEvent`
-- [ ] Task contract loader + YAML schema validation
-- [ ] Python tool wrappers with 5 in-process mock tools and synthetic data (customers A/B, tickets, injection payload, honeytokens)
-- [ ] Gateway `authorize()` with ALLOW/DENY only (contract tool + scope + destination checks)
-- [ ] Audit log: JSONL, hash-chained, with `attempted`, `decision`, `containment_state`, `tool_executed`, `prev_hash`, `hash`
-- [ ] Unit test: denied call never reaches the tool
-- [ ] Scripted agent that replays a benign trace through the gateway
-- [ ] Document Docker topology: agent and gateway share an internal network; mock tools are reachable only by gateway; agent has no internet
+- [x] Repo scaffold per `AGENTS.md` layout (`uv`, `pyproject.toml`, `Makefile`, `ruff`, `pytest`, `pre-commit`, MIT license, `.gitignore` incl. `docs/internal/`)
+- [x] Pydantic models: `TaskContract`, `ToolCall`, `Decision`, `AuditEvent`
+- [x] Task contract loader + YAML schema validation
+- [x] Python tool wrappers with 5 in-process mock tools and synthetic data (customers A/B, tickets, injection payload, honeytokens)
+- [x] Gateway `authorize()` with ALLOW/DENY only (contract tool + scope + destination checks)
+- [x] Audit log: JSONL, hash-chained, with `attempted`, `decision`, `containment_state`, `tool_executed`, `prev_hash`, `hash`
+- [x] Unit test: denied call never reaches the tool
+- [x] Scripted agent that replays a benign trace through the gateway
+- [x] Document Docker topology: agent and gateway share an internal network; mock tools are reachable only by gateway; agent has no internet
 
 ### Checkpoint B — Tomorrow morning (before doors): the detection core
 Target: attack traces get caught; benign traces don't.
@@ -27,19 +27,19 @@ Target: attack traces get caught; benign traces don't.
 - [x] Record 3 attack traces (slow drift, honeytoken grab, escape-style) + 10 benign traces
 - [x] Eval harness over ≥ 20 trajectories → detection rate, false-block rate, actions-to-detect, latency
 - [x] Tests for every detector (positive and negative cases)
-- [ ] MCP proxy mode: Tripwire sits in front of the mock MCP server
-- [ ] Dockerfile + compose: agent alone on an `internal: true` network; gateway can reach tools; agent cannot reach tools or internet
+- [x] MCP proxy mode: Tripwire sits in front of the mock MCP server
+- [x] Dockerfile + compose: agent alone on an `internal: true` network; gateway can reach tools; agent cannot reach tools or internet
 
 ### Checkpoint C — At the event (11:00–1:30): investigation
-- [ ] Investigator prompt + JSON schema output via Ollama
+- [x] Investigator prompt + JSON schema output via Ollama
 - [ ] Ollama installed, small model pulled, one test prompt works
-- [ ] Citation verifier (reject non-existent event IDs)
-- [ ] Deterministic template fallback report
-- [ ] Stage labels (recon → credential access → escape attempt → persistence)
-- [ ] Cache reports from tonight so the demo never waits on the model
+- [x] Citation verifier (reject non-existent event IDs)
+- [x] Deterministic template fallback report
+- [x] Stage labels (recon → credential access → escape attempt → persistence)
+- [x] Cache reports from tonight so the demo never waits on the model
 
 ### Checkpoint D — At the event (2:00–3:45): demo surface
-- [ ] Streamlit: live timeline (green → amber → red → contained), blocked-action panel, "sensitive ops executed: 0", incident report, metrics table
+- [x] Streamlit: live timeline (green → amber → red → contained), blocked-action panel, "sensitive ops executed: 0", incident report, metrics table
 - [ ] Live mode: local model agent attempts the task against a decoy; replay mode as fallback toggle
 - [ ] Dry-run the 90-second demo three times, including with wifi off
 

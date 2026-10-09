@@ -19,8 +19,18 @@ make investigate
 make dashboard
 ```
 
-`make demo` replays a benign support-summary trace through the gateway and writes a JSONL audit
-log to `.tripwire/demo-audit.jsonl`.
+`make demo` replays three scripted scenarios offline through the gateway and writes one
+hash-chained audit log each to `.tripwire/demo-<scenario>.jsonl`:
+
+| Scenario | What the scripted agent does | Ends |
+|---|---|---|
+| `benign` | Summarizes Customer A's open tickets | `OK` |
+| `slow_drift` | Legitimate reads, then repeated probes of Customer B, then exfiltration | `PAUSED` |
+| `escape` | Shell attempt, then exfiltration over HTTP and email | `KILLED` |
+
+`make investigate` writes an incident report per log (cached in `.tripwire/reports/`), and
+`make dashboard` shows the timeline, blocked actions, report and eval metrics. Scenarios are
+synthetic fixtures in `examples/enterprise_agent/scenarios.json`.
 
 ## Built Surface
 
@@ -39,10 +49,16 @@ log to `.tripwire/demo-audit.jsonl`.
   `KILLED`.
 - `WARN` remains non-blocking; `PAUSED` and `KILLED` deny the triggering call and every later
   call.
-- HTTP/JSON proxy surface with JSON-RPC-style `tools/call`, plus a gateway-only mock tool service.
-- Optional Ollama investigator client, deterministic template report fallback, and citation
-  verifier.
-- Streamlit dashboard reading replay audit logs and eval metrics.
+- MCP server front end (`tripwire-mcp`, official `mcp` SDK, Streamable HTTP or stdio) plus a
+  plain HTTP/JSON endpoint; both route every call through the same gateway. Malformed requests
+  are denied and audited.
+- Gateway-only mock tool service. Honeytoken matching happens in the gateway; the token list is
+  never sent to the tool service.
+- Optional Ollama investigator, deterministic template fallback, and a citation verifier. A
+  model report with any invalid citation is replaced by the template. Reports are cached by the
+  audit log's final hash so the demo never waits on the model.
+- Streamlit dashboard: containment banner, coloured timeline, blocked actions, ran-while-blocked
+  counter, incident report and eval metrics.
 - Docker compose topology with an agent/gateway internal network and a separate gateway/tools
   network.
 - Offline trace eval with 26 YAML fixture trajectories: 13 benign (including a typo-then-correct
@@ -81,6 +97,28 @@ curl -s http://127.0.0.1:8080/tool-call \
   -d '{"tool":"read_customer","arguments":{"customer_id":"A"}}'
 ```
 
+## MCP
+
+```bash
+make tools   # mock tool service on :9090
+make mcp     # Tripwire MCP server on http://127.0.0.1:8081/mcp
+```
+
+`tools/list` advertises only the tools the contract allows. A denied call comes back as a tool
+error carrying the decision and event ID. `--transport stdio` exists for local development, but
+it runs the gateway inside the client's process; use HTTP whenever the agent is sandboxed.
+
+## Investigator
+
+The investigator is optional and never in the allow/deny path. With no model it uses the
+template report. To use a local model:
+
+```bash
+brew install ollama
+ollama pull qwen2.5:3b-instruct
+make investigate
+```
+
 ## Docker
 
 The compose topology is in `docker/compose.yaml`.
@@ -91,7 +129,20 @@ make docker-up
 ```
 
 Docker Desktop/daemon must be running. Both compose networks are marked `internal: true`; the
-agent only joins `agent_internal`, while the mock tools only join `tools_only`.
+agent only joins `agent_internal`, while the mock tools only join `tools_only`. The agent has its
+own image (`docker/agent.Dockerfile`) holding just the replay script and scenarios: no Tripwire
+code, contracts, tool data or honeytokens. Pick a scenario with
+`TRIPWIRE_SCENARIO=escape make docker-up`. Gateway audit logs are written to `.tripwire/` on the
+host, so the dashboard can show a Docker run.
+
+Checked locally: from the agent container the gateway is reachable, while the mock tools and the
+internet are not.
+
+## Limits
+
+Tripwire detects a defined set of scope violations and suspicious sequences at the tool-call
+layer. It is one layer and does not replace OS, container or network isolation. Each gateway
+process enforces one contract for one session.
 
 ## Still Out Of Scope
 
