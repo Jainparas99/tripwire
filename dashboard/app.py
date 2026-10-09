@@ -69,7 +69,7 @@ def _status_row(events: list[AuditEvent], log_path: Path) -> None:
     executed_while_blocked = sum(
         1
         for event in events
-        if event.tool_executed
+        if event.tool_invoked
         and (event.decision == "DENY" or event.containment_state in {"PAUSED", "KILLED"})
     )
     kill = load_task_contract(CONTRACT_FILE).thresholds.get("kill", 10)
@@ -91,7 +91,12 @@ def _timeline(events: list[AuditEvent]) -> None:
     for event in events:
         decision = event.decision.value
         state = event.containment_state.value
-        executed = "executed" if event.tool_executed else "not executed"
+        if event.tool_completed:
+            executed = "completed"
+        elif event.tool_invoked:
+            executed = "invoked, not completed"
+        else:
+            executed = "not invoked"
         reasons = ", ".join(event.reason_codes) or "no findings"
         st.markdown(
             f"`{event.event_id}` **{event.attempted.tool}** "

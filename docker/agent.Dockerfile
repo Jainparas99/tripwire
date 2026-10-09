@@ -4,7 +4,7 @@ FROM python:3.12-slim
 
 RUN useradd --create-home agent
 WORKDIR /agent
-COPY examples/enterprise_agent/replay_agent.py examples/enterprise_agent/scenarios.json ./
+COPY examples/enterprise_agent/replay_agent.py examples/enterprise_agent/scenarios.json docker/check_isolation.py ./
 USER agent
 
 ENTRYPOINT ["python", "replay_agent.py"]

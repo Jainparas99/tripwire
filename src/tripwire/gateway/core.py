@@ -24,7 +24,10 @@ class TripwireGateway:
         audit_log: AuditLog,
         tools: ToolRegistry | None = None,
         session_id: str = "sess_01",
+        contract_signing_key: str | bytes | None = None,
     ) -> None:
+        if contract_signing_key is not None and not contract.verify_signature(contract_signing_key):
+            raise ValueError("task contract signature is missing or invalid")
         self._contract = contract
         self._audit_log = audit_log
         self._tools: ToolRegistry = tools or MockToolRegistry()
@@ -44,11 +47,16 @@ class TripwireGateway:
         return self._seq
 
     def authorize(self, call: ToolCall) -> Decision:
-        """Return ALLOW or DENY using only trusted contract state and call arguments."""
-        with self._lock:
-            return self._authorize(call)
+        """Preview a decision without changing session state or writing an audit event.
 
-    def _authorize(self, call: ToolCall) -> Decision:
+        Tool execution must use :meth:`call_tool`, which commits the decision and
+        appends the corresponding audit event. Keeping this method side-effect free
+        prevents callers from changing containment state without evidence.
+        """
+        with self._lock:
+            return self._authorize(call, commit_state=False)
+
+    def _authorize(self, call: ToolCall, *, commit_state: bool = True) -> Decision:
         if self._containment_state in {ContainmentState.PAUSED, ContainmentState.KILLED}:
             return Decision.deny(
                 f"SESSION_{self._containment_state.value}",
@@ -103,27 +111,31 @@ class TripwireGateway:
             )
         )
 
-        self._score += sum(item.score for item in findings)
-        self._containment_state = (
+        next_score = self._score + sum(item.score for item in findings)
+        next_containment_state = (
             ContainmentState.KILLED
             if any(item.reason_code == "HONEYTOKEN_TOUCH" for item in findings)
-            else containment_for_score(self._score, self._contract.thresholds)
+            else containment_for_score(next_score, self._contract.thresholds)
         )
 
+        if commit_state:
+            self._score = next_score
+            self._containment_state = next_containment_state
+
         hard_deny = bool(policy_reason_codes)
-        contained = self._containment_state in {ContainmentState.PAUSED, ContainmentState.KILLED}
+        contained = next_containment_state in {ContainmentState.PAUSED, ContainmentState.KILLED}
         if hard_deny or contained:
             return Decision.deny(
                 *reason_codes,
-                containment_state=self._containment_state,
-                score=self._score,
+                containment_state=next_containment_state,
+                score=next_score,
                 evidence_event_ids=evidence_event_ids,
             )
 
         return Decision.allow(
-            containment_state=self._containment_state,
+            containment_state=next_containment_state,
             reason_codes=reason_codes,
-            score=self._score,
+            score=next_score,
             evidence_event_ids=evidence_event_ids,
         )
 
@@ -137,11 +149,13 @@ class TripwireGateway:
         decision = self._authorize(call)
 
         data: dict[str, Any] | None = None
-        tool_executed = False
+        tool_invoked = False
+        tool_completed = False
         if decision.action is DecisionAction.ALLOW:
+            tool_invoked = True
             try:
                 data = self._tools.run(call)
-                tool_executed = True
+                tool_completed = True
             except Exception:
                 decision = Decision.deny(
                     "TOOL_EXECUTION_ERROR",
@@ -157,7 +171,12 @@ class TripwireGateway:
             seq=self._seq,
             attempted=call,
             decision=decision,
-            tool_executed=tool_executed,
+            tool_invoked=tool_invoked,
+            tool_completed=tool_completed,
+            tool_executed=tool_completed,
+            source_resource=_source_resource(call),
+            sensitivity=_sensitivity(call),
+            untrusted_content_seen=tool_completed and data is not None,
         )
         return GatewayResult(decision=decision, data=data, event_id=event.event_id)
 
@@ -204,3 +223,21 @@ class TripwireGateway:
         if destination_allowed(destination, self._contract.allowed_destinations):
             return None
         return "DESTINATION_NOT_ALLOWED"
+
+
+def _source_resource(call: ToolCall) -> str | None:
+    for key in ("source_resource", "ticket_id", "customer_id", "query", "url", "to"):
+        value = call.arguments.get(key)
+        if isinstance(value, str) and value:
+            return f"{key}:{value}"
+    return None
+
+
+def _sensitivity(call: ToolCall) -> str | None:
+    if call.tool in {"read_customer", "read_ticket"}:
+        return "customer_data"
+    if call.tool == "search_docs":
+        return "documentation"
+    if call.tool in {"send_email", "http_post"}:
+        return "external_destination"
+    return None

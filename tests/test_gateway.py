@@ -1,7 +1,7 @@
 from pathlib import Path
 
 from tripwire.audit import AuditLog
-from tripwire.contracts import TaskContract
+from tripwire.contracts import TaskContract, ToolCall
 from tripwire.gateway import DecisionAction, TripwireGateway
 from tripwire.tools import MockToolRegistry
 
@@ -49,6 +49,42 @@ def test_allowed_call_executes_tool_and_audits(tmp_path: Path) -> None:
     assert event.tool_executed is True
     assert event.prev_hash is None
     assert len(event.hash) == 64
+    assert event.tool_invoked is True
+    assert event.tool_completed is True
+    assert event.source_resource == "customer_id:A"
+    assert event.sensitivity == "customer_data"
+    assert event.untrusted_content_seen is True
+
+
+def test_authorize_is_a_state_free_preview(tmp_path: Path) -> None:
+    gateway, tools, audit_log = _gateway(tmp_path)
+
+    preview = gateway.authorize(ToolCall(tool="read_customer", arguments={"customer_id": "B"}))
+
+    assert preview.action is DecisionAction.DENY
+    assert preview.score == 3
+    assert gateway.seq == 0
+    assert audit_log.read_events() == []
+    assert tools.call_counts["read_customer"] == 0
+    assert gateway.call_tool("read_customer", {"customer_id": "A"}).decision.score == 0
+
+
+def test_failed_tool_invocation_is_audited_separately_from_completion(tmp_path: Path) -> None:
+    class FailingTools(MockToolRegistry):
+        def run(self, call):
+            self.call_counts[call.tool] += 1
+            raise RuntimeError("backend unavailable")
+
+    audit_log = AuditLog(tmp_path / "audit.jsonl", reset=True)
+    gateway = TripwireGateway(contract=_contract(), audit_log=audit_log, tools=FailingTools())
+
+    result = gateway.call_tool("read_customer", {"customer_id": "A"})
+
+    assert result.decision.reason_codes == ("TOOL_EXECUTION_ERROR",)
+    event = audit_log.read_events()[0]
+    assert event.tool_invoked is True
+    assert event.tool_completed is False
+    assert event.tool_executed is False
 
 
 def test_denied_scope_call_never_invokes_tool(tmp_path: Path) -> None:

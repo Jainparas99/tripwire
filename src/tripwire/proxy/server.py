@@ -38,7 +38,7 @@ def build_gateway(*, contract_path: Path, audit_log_path: Path) -> TripwireGatew
     tool_base_url = os.getenv("TRIPWIRE_TOOL_BASE_URL")
     tools = HttpToolRegistry(tool_base_url) if tool_base_url else MockToolRegistry()
     return TripwireGateway(
-        contract=load_task_contract(contract_path),
+        contract=load_task_contract(contract_path, signing_key=os.getenv("TRIPWIRE_CONTRACT_KEY")),
         audit_log=AuditLog(audit_log_path, reset=True),
         tools=tools,
         session_id=os.getenv("TRIPWIRE_SESSION_ID", "sess_http"),

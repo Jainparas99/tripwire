@@ -62,7 +62,7 @@ def run_eval(*, contract_path: Path, trace_path: Path) -> dict[str, Any]:
 
                 event = audit_log.read_events()[-1]
                 contained = event.containment_state in {"PAUSED", "KILLED"}
-                if event.tool_executed and (event.decision == "DENY" or contained):
+                if event.tool_invoked and (event.decision == "DENY" or contained):
                     executed_while_blocked += 1
 
                 denied = result.decision.action == "DENY"

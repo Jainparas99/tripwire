@@ -10,7 +10,7 @@ class ContractLoadError(ValueError):
     """Raised when a task contract cannot be loaded or validated."""
 
 
-def load_task_contract(path: str | Path) -> TaskContract:
+def load_task_contract(path: str | Path, *, signing_key: str | bytes | None = None) -> TaskContract:
     """Load a trusted YAML task contract supplied by the application."""
     contract_path = Path(path)
     try:
@@ -24,6 +24,10 @@ def load_task_contract(path: str | Path) -> TaskContract:
         raise ContractLoadError("task contract must be a YAML mapping")
 
     try:
-        return TaskContract.model_validate(raw)
+        contract = TaskContract.model_validate(raw)
     except ValidationError as exc:
         raise ContractLoadError(str(exc)) from exc
+
+    if signing_key is not None and not contract.verify_signature(signing_key):
+        raise ContractLoadError("task contract signature is missing or invalid")
+    return contract

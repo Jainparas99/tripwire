@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import hashlib
+import hmac
 import json
 from typing import Any
 
@@ -30,6 +31,7 @@ class TaskContract(BaseModel):
     max_actions: PositiveInt
     honeytokens: tuple[str, ...] = Field(default_factory=tuple)
     thresholds: dict[str, int] = Field(default_factory=dict)
+    signature: str | None = None
 
     @field_validator("allowed_tools", mode="before")
     @classmethod
@@ -49,6 +51,26 @@ class TaskContract(BaseModel):
 
     @property
     def contract_hash(self) -> str:
-        payload = self.model_dump(mode="json")
-        encoded = json.dumps(payload, sort_keys=True, separators=(",", ":")).encode("utf-8")
+        encoded = self.canonical_bytes(include_signature=True)
         return hashlib.sha256(encoded).hexdigest()
+
+    def canonical_bytes(self, *, include_signature: bool = False) -> bytes:
+        """Return the stable bytes used for hashing and optional signing."""
+        payload = self.model_dump(mode="json")
+        if not include_signature:
+            payload.pop("signature", None)
+        return json.dumps(payload, sort_keys=True, separators=(",", ":")).encode("utf-8")
+
+    def signature_for(self, key: str | bytes) -> str:
+        """Return an HMAC-SHA256 signature for this contract without its signature field."""
+        secret = key.encode("utf-8") if isinstance(key, str) else key
+        return hmac.new(secret, self.canonical_bytes(), hashlib.sha256).hexdigest()
+
+    def with_signature(self, key: str | bytes) -> TaskContract:
+        """Return an immutable copy sealed with an HMAC-SHA256 signature."""
+        return self.model_copy(update={"signature": self.signature_for(key)})
+
+    def verify_signature(self, key: str | bytes) -> bool:
+        if not self.signature:
+            return False
+        return hmac.compare_digest(self.signature, self.signature_for(key))

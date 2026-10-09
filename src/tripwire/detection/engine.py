@@ -147,7 +147,7 @@ def _enumeration(call: ToolCall, history: list[AuditEvent]) -> tuple[str, ...]:
     candidates = [
         event
         for event in history[-ENUMERATION_WINDOW:]
-        if event.tool_executed and event.attempted.tool == call.tool
+        if event.tool_completed and event.attempted.tool == call.tool
     ]
     resources = {_resource_id(event.attempted) for event in candidates}
     resources.add(_resource_id(call))
@@ -173,7 +173,7 @@ def _read_then_send(
     sensitive_reads = [
         event
         for event in history[-ENUMERATION_WINDOW:]
-        if event.tool_executed and event.attempted.tool in {"read_customer", "read_ticket"}
+        if event.tool_completed and event.attempted.tool in {"read_customer", "read_ticket"}
     ]
     return tuple(event.event_id for event in sensitive_reads[-2:])
 

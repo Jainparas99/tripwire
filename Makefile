@@ -1,4 +1,4 @@
-.PHONY: setup test lint eval demo live-demo investigate audit-index tools gateway mcp dashboard docker-build docker-up docker-down
+.PHONY: setup test lint eval evidence demo live-demo investigate audit-index tools gateway mcp dashboard docker-build docker-up docker-down docker-check
 
 setup:
 	uv sync
@@ -12,6 +12,9 @@ lint:
 
 eval:
 	PYTHONPATH=src uv run python -m tripwire.evaluation.runner
+
+evidence:
+	PYTHONPATH=src uv run python -m tripwire.audit.evidence .tripwire/*.jsonl --output .tripwire/evidence.json
 
 demo:
 	PYTHONPATH=src uv run python -m tripwire.demo
@@ -44,4 +47,9 @@ docker-up:
 	docker compose -f docker/compose.yaml up
 
 docker-down:
+	docker compose -f docker/compose.yaml down
+
+docker-check:
+	docker compose -f docker/compose.yaml up -d --wait
+	docker compose -f docker/compose.yaml run --rm --no-deps --entrypoint python agent check_isolation.py
 	docker compose -f docker/compose.yaml down

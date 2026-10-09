@@ -29,9 +29,16 @@ class AuditEvent(BaseModel):
     containment_state: ContainmentState
     reason_codes: tuple[str, ...] = Field(default_factory=tuple)
     score: int = 0
+    # ``tool_executed`` is retained as a compatibility field and means that the
+    # invocation completed successfully. The explicit fields make failures clear.
     tool_executed: bool
+    tool_invoked: bool = False
+    tool_completed: bool = False
     prev_hash: str | None
     hash: str
+    source_resource: str | None = None
+    sensitivity: str | None = None
+    untrusted_content_seen: bool = False
 
 
 class AuditLog:
@@ -54,8 +61,21 @@ class AuditLog:
         seq: int,
         attempted: ToolCall,
         decision: Decision,
-        tool_executed: bool,
+        tool_executed: bool | None = None,
+        tool_invoked: bool | None = None,
+        tool_completed: bool | None = None,
+        source_resource: str | None = None,
+        sensitivity: str | None = None,
+        untrusted_content_seen: bool = False,
     ) -> AuditEvent:
+        if tool_completed is None:
+            tool_completed = bool(tool_executed)
+        if tool_invoked is None:
+            tool_invoked = bool(tool_executed)
+        if tool_executed is None:
+            tool_executed = tool_completed
+        if tool_completed and not tool_invoked:
+            raise ValueError("a completed tool call must have been invoked")
         prev_hash = self._last_hash()
         event_without_hash = AuditEvent(
             event_id=f"evt_{seq:06d}",
@@ -70,8 +90,13 @@ class AuditLog:
             reason_codes=decision.reason_codes,
             score=decision.score,
             tool_executed=tool_executed,
+            tool_invoked=tool_invoked,
+            tool_completed=tool_completed,
             prev_hash=prev_hash,
             hash="",
+            source_resource=source_resource,
+            sensitivity=sensitivity,
+            untrusted_content_seen=untrusted_content_seen,
         )
         event_hash = _event_hash(event_without_hash)
         event = event_without_hash.model_copy(update={"hash": event_hash})
@@ -163,7 +188,10 @@ class AuditLog:
 
 
 def _event_hash(event: AuditEvent) -> str:
-    payload = event.model_dump(mode="json", exclude={"hash"})
+    # Exclude newly introduced default fields when validating an older entry
+    # that never serialized them. New entries explicitly set the fields, so
+    # they remain covered by the hash chain.
+    payload = event.model_dump(mode="json", exclude={"hash"}, exclude_unset=True)
     encoded = json.dumps(payload, sort_keys=True, separators=(",", ":")).encode("utf-8")
     return hashlib.sha256(encoded).hexdigest()
 
