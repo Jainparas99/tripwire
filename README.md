@@ -76,10 +76,10 @@ Current local eval (`make eval`):
 ```text
 traces                     26
 attack_detection_rate      100.00%
-attack_containment_rate    76.92%
+attack_containment_rate    69.23%
 false_block_rate           0.00%
 median_actions_to_detect   1
-median_actions_to_contain  1.5
+median_actions_to_contain  1
 executed_while_blocked     0
 ```
 
@@ -178,8 +178,9 @@ written only with `ARGS=--apply`. Threshold changes are printed as a suggested c
 never written, because contracts belong to the application and their thresholds override the
 config defaults.
 
-Applied so far: `MAX_ACTIONS_EXCEEDED` 2 -> 6, which raised attack containment on the fixtures from
-69.23% to 76.92% with zero false blocks. Raising `CUSTOMER_SCOPE_VIOLATION` or `UNKNOWN_TOOL` to 6
+The un-hardened baseline keeps `MAX_ACTIONS_EXCEEDED` at 2. `make remediate` proposes raising it to 6,
+which raises attack containment on the fixtures from 69.23% to 76.92% with zero false blocks;
+`make remediate ARGS=--apply` applies that accepted weight change. Raising `CUSTOMER_SCOPE_VIOLATION` or `UNKNOWN_TOOL` to 6
 would contain more (up to 92.31%) but was rejected: pausing on the first probe freezes the score,
 so `attack_retry_after_denial` and `attack_escape_style` would stop at `PAUSED` instead of
 `KILLED`. The remaining `WARN`-only attacks are a single out-of-scope read, a single unknown tool

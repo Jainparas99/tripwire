@@ -83,6 +83,12 @@ def test_default_eval_is_unchanged(baseline: dict) -> None:
         assert _comparable(again) == _comparable(baseline)
 
 
+def test_repository_baseline_is_unhardened() -> None:
+    weights = yaml.safe_load(CONFIG_PATH.read_text(encoding="utf-8"))["weights"]
+
+    assert weights["MAX_ACTIONS_EXCEEDED"] == REFERENCE_WEIGHTS["MAX_ACTIONS_EXCEEDED"] == 2
+
+
 def test_per_trace_is_additive(baseline: dict) -> None:
     assert len(baseline["per_trace"]) == 26
     assert set(baseline["per_trace"][0]) == {
