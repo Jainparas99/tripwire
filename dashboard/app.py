@@ -16,6 +16,7 @@ from tripwire.evaluation.runner import run_eval
 from tripwire.investigation.cache import load_cached_report
 from tripwire.investigation.template import build_template_report
 from tripwire.investigation.verifier import verify_report
+from tripwire.sponsors import provider_status, semgrep_scan
 
 ROOT = Path(__file__).resolve().parents[1]
 LOG_DIR = Path(os.getenv("TRIPWIRE_LOG_DIR", ROOT / ".tripwire"))
@@ -42,7 +43,14 @@ SEVERITY_CLASS = {
 STATUS_LIGHT = {"OK": "#127a5a", "WARN": "#b06a00", "PAUSED": "#7c3aed", "KILLED": "#c0302f"}
 STATUS_DARK = {"OK": "#2f9e7f", "WARN": "#b8830f", "PAUSED": "#9174f0", "KILLED": "#e05252"}
 SERIES_COLOR = "#3a74e0"  # inside the lightness band on both light and dark surfaces
-LOG_ORDER = ["demo-escape", "demo-slow_drift", "demo-live", "demo-benign", "gateway-audit"]
+LOG_ORDER = [
+    "open-web-watch",
+    "demo-escape",
+    "demo-slow_drift",
+    "demo-live",
+    "demo-benign",
+    "gateway-audit",
+]
 REPORT_PREFERENCE = ["demo-escape", "demo-slow_drift"]
 
 
@@ -60,7 +68,7 @@ def main() -> None:
     logs = _audit_logs()
     _header_strip(logs)
 
-    live, incident, gauntlet, remediation, redteam, fleet = st.tabs(
+    live, incident, gauntlet, remediation, redteam, fleet, sponsors = st.tabs(
         [
             "Live containment",
             "Incident report",
@@ -68,6 +76,7 @@ def main() -> None:
             "Remediation",
             "Red-team",
             "Fleet",
+            "Sponsors",
         ]
     )
     with live:
@@ -82,6 +91,8 @@ def main() -> None:
         _redteam_tab()
     with fleet:
         _fleet_tab(logs)
+    with sponsors:
+        _sponsors_tab()
 
 
 # ---------------------------------------------------------------- styling
@@ -1100,6 +1111,70 @@ def _fleet_gauntlet() -> None:
             for model, item in grouped.items()
         ],
         numeric={1, 2, 3, 4},
+    )
+
+
+@st.cache_data(ttl=300, show_spinner="Running Semgrep…")
+def _cached_semgrep_scan() -> dict:
+    # Without the cache, every click anywhere in the dashboard re-runs semgrep (up to 15 s).
+    return semgrep_scan()
+
+
+def _sponsors_tab() -> None:
+    """Make sponsor value visible without overstating unavailable credentials."""
+    st.subheader("Sponsor integrations")
+    st.caption(
+        "Every card is either backed by a local check or explicitly marked ready/configured."
+    )
+
+    try:
+        from tripwire import analytics
+
+        clickhouse_state = "connected" if analytics.reachable(timeout=0.5) else "ready"
+        clickhouse_detail = (
+            "MergeTree audit_events + measured fleet queries"
+            if clickhouse_state == "connected"
+            else "Run `make analytics` to load the fleet demo"
+        )
+    except ImportError:
+        clickhouse_state, clickhouse_detail = "ready", "Install the optional analytics group"
+
+    cards = [("ClickHouse", clickhouse_state, clickhouse_detail)]
+    cards.extend((name, item["status"], item["detail"]) for name, item in provider_status().items())
+    _kpis(
+        [
+            (name, status.upper(), "ok" if status == "connected" else "accent", detail)
+            for name, status, detail in cards
+        ]
+    )
+
+    _section("Semgrep · reproducible code-security scan")
+    scan = _cached_semgrep_scan()
+    findings = scan.get("findings", [])
+    if scan.get("status") == "connected":
+        st.success(f"Semgrep local rules executed: {len(findings)} finding(s)")
+        for finding in findings:
+            path = finding.get("path", "unknown")
+            line = finding.get("start", {}).get("line", "?")
+            check = finding.get("check_id", "rule")
+            st.warning(
+                f"{check} · {path}:{line} · {finding.get('extra', {}).get('message', '')}"
+            )
+    elif scan.get("status") == "not installed":
+        st.info(
+            "Semgrep is not installed in this runtime. "
+            "Run: `semgrep scan --config semgrep.yml src`"
+        )
+    else:
+        st.warning(f"Semgrep scan unavailable: {scan.get('errors', 'unknown error')}")
+
+    _section("Judge-facing story")
+    st.markdown(
+        "**ClickHouse** answers fleet-scale questions over hash-chained audit events. "
+        "**Semgrep** scans the agent/security code path and surfaces provider-egress risk. "
+        "**AkashML** can provide the investigator model through the existing OpenAI-compatible "
+        "provider. **Guild** hosts the worker/run. **Senso** supplies verified task context before "
+        "the agent acts. Tripwire remains the fail-closed enforcement boundary."
     )
 
 

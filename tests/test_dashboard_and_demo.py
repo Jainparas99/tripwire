@@ -62,6 +62,7 @@ def test_dashboard_gauntlet_tab_reads_committed_snapshot(
         "Remediation",
         "Red-team",
         "Fleet",
+        "Sponsors",
     ]
     gauntlet = app.tabs[2]
     assert gauntlet.table, "gauntlet tab should render the snapshot table"

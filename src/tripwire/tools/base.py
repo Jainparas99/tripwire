@@ -10,6 +10,8 @@ TOOL_ARGUMENTS: dict[str, frozenset[str]] = {
     "search_docs": frozenset({"query"}),
     "send_email": frozenset({"to", "subject"}),
     "http_post": frozenset({"url"}),
+    "fetch_cisa_kev": frozenset({"url"}),
+    "publish_alert": frozenset({"path", "content"}),
 }
 
 

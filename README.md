@@ -211,6 +211,40 @@ The unflagged read-then-send sessions are all `benign_read_then_email_allowed`: 
 allowed address, which Tripwire deliberately does not flag. Timestamps in the synthetic set are
 generated, so time-to-kill shows the query working, not real agent timing.
 
+## Sponsor integrations
+
+The dashboard's **Sponsors** tab makes the demo's integrations explicit:
+
+- **ClickHouse**: the optional Fleet panel loads hash-chained audit events into a MergeTree and
+  measures deny-reason, time-to-kill, and read-then-send queries.
+- **Semgrep**: `semgrep scan --config semgrep.yml src` runs the checked-in local rule pack. The
+  rule highlights provider egress that should be pinned or allowlisted before deployment.
+- **AkashML**: use the existing verified investigator adapter with an OpenAI-compatible endpoint:
+  `AKASHML_ENDPOINT=... AKASHML_API_KEY=... TRIPWIRE_INVESTIGATOR_PROVIDERS=openai-compatible:MODEL
+  make investigate`. The report is still rejected if its citations do not match the audit log.
+- **Guild.ai**: deploy the worker/gateway run with Guild and set `GUILD_RUN_ID` so the dashboard
+  identifies the hosted run; Tripwire remains the fail-closed tool-call boundary.
+- **Senso.ai**: provide verified task context to the agent before it proposes calls and set
+  `SENSO_CONTEXT_URL` for the dashboard's configuration marker. Never treat model output as
+  trusted policy; the application contract remains authoritative.
+
+Only configured services are reported as connected; the UI deliberately labels the rest as ready.
+
+## Open-web threat watch
+
+`make open-web` runs the autonomous threat-watch path against CISA's public Known Exploited
+Vulnerabilities JSON feed. The feed URL is the only permitted web source in the trusted contract.
+The agent fetches the live catalog through the Tripwire gateway, prioritizes recent entries with
+known ransomware use or near-term due dates, and publishes `.tripwire/open-web-alert.json`.
+Both the web fetch and publication are audited in `.tripwire/open-web-watch.jsonl`; no action runs
+outside the gateway. This is a real monitor against a public source, not a replay fixture.
+
+Run it without `uv` if the local uv cache is locked down:
+
+```bash
+PYTHONPATH=src .venv/bin/python -m tripwire.open_web --limit 3
+```
+
 ## Audit Index
 
 `make audit-index` builds queryable SQLite indexes next to the demo JSONL logs. JSONL

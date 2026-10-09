@@ -144,16 +144,26 @@ def build_openai_compatible_report(
     model: str,
     timeout: float = 20,
 ) -> IncidentReport:
-    endpoint = os.getenv("TRIPWIRE_OPENAI_COMPAT_ENDPOINT")
+    # AkashML exposes an OpenAI-compatible endpoint, so it plugs into the same
+    # verified investigator path without changing Tripwire's enforcement boundary.
+    # Keep each key paired with its own endpoint so an AkashML key is never sent to some other
+    # OpenAI-compatible server (and vice versa).
+    if os.getenv("TRIPWIRE_OPENAI_COMPAT_ENDPOINT"):
+        endpoint = os.getenv("TRIPWIRE_OPENAI_COMPAT_ENDPOINT")
+        api_key = os.getenv("TRIPWIRE_OPENAI_COMPAT_API_KEY")
+    else:
+        endpoint = os.getenv("AKASHML_ENDPOINT")
+        api_key = os.getenv("AKASHML_API_KEY")
     if not endpoint:
-        raise InvestigatorProviderUnavailable("TRIPWIRE_OPENAI_COMPAT_ENDPOINT is not set")
+        raise InvestigatorProviderUnavailable(
+            "TRIPWIRE_OPENAI_COMPAT_ENDPOINT or AKASHML_ENDPOINT is not set"
+        )
     payload = {
         "model": model,
         "temperature": 0,
         "messages": [{"role": "user", "content": build_investigator_prompt(events)}],
     }
     headers: dict[str, str] = {}
-    api_key = os.getenv("TRIPWIRE_OPENAI_COMPAT_API_KEY")
     if api_key:
         headers["authorization"] = f"Bearer {api_key}"
     response = _post_json(endpoint, payload, timeout=timeout, headers=headers)

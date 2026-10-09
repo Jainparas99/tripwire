@@ -1,0 +1,13 @@
+rules:
+  - id: tripwire-unpinned-provider-egress
+    languages: [python]
+    message: >-
+      Provider egress is controlled by an environment-configured endpoint. Pin the
+      endpoint or enforce an explicit host allowlist before deploying an agent.
+    severity: WARNING
+    pattern: urlopen($ENDPOINT, ...)
+    metadata:
+      category: security
+      technology: [python, ai-agents]
+      sponsor: semgrep
+      confidence: medium
