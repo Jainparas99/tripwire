@@ -6,7 +6,12 @@ from typing import Any
 from tripwire.audit.log import AuditLog
 from tripwire.contracts.destinations import destination_allowed, extract_destinations
 from tripwire.contracts.models import TaskContract, ToolCall
-from tripwire.detection import analyze_call, containment_for_score
+from tripwire.detection import (
+    DetectorConfig,
+    analyze_call,
+    containment_for_score,
+    effective_thresholds,
+)
 from tripwire.gateway.models import ContainmentState, Decision, DecisionAction, GatewayResult
 from tripwire.tools.base import ToolRegistry
 from tripwire.tools.mock import MockToolRegistry
@@ -25,10 +30,18 @@ class TripwireGateway:
         tools: ToolRegistry | None = None,
         session_id: str = "sess_01",
         contract_signing_key: str | bytes | None = None,
+        detector_config: DetectorConfig | None = None,
     ) -> None:
         if contract_signing_key is not None and not contract.verify_signature(contract_signing_key):
             raise ValueError("task contract signature is missing or invalid")
         self._contract = contract
+        # None keeps the YAML weights and the contract's thresholds exactly as before.
+        self._detector_config = detector_config
+        self._thresholds = (
+            contract.thresholds
+            if detector_config is None
+            else effective_thresholds(contract, detector_config)
+        )
         self._audit_log = audit_log
         self._tools: ToolRegistry = tools or MockToolRegistry()
         self._session_id = session_id
@@ -99,6 +112,7 @@ class TripwireGateway:
                 tools=self._tools,
                 history=self._audit_log.read_events(),
                 policy_reason_codes=tuple(policy_reason_codes),
+                config=self._detector_config,
             )
         except Exception:
             return Decision.deny(
@@ -118,7 +132,7 @@ class TripwireGateway:
         next_containment_state = (
             ContainmentState.KILLED
             if any(item.reason_code == "HONEYTOKEN_TOUCH" for item in findings)
-            else containment_for_score(next_score, self._contract.thresholds)
+            else containment_for_score(next_score, self._thresholds)
         )
 
         self._score = next_score

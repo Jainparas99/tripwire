@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from collections.abc import Mapping
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -57,6 +58,34 @@ RETRY_WINDOW = 3
 
 
 @dataclass(frozen=True)
+class DetectorConfig:
+    """In-memory overrides for detector weights and containment thresholds.
+
+    ``None`` fields keep today's behaviour: weights from config.yaml, thresholds from the
+    contract (falling back to config.yaml). Used by evaluation and remediation; nothing here
+    edits the config file or a contract.
+    """
+
+    weights: Mapping[str, int] | None = None
+    thresholds: Mapping[str, int] | None = None
+
+    def weight_map(self) -> Mapping[str, int]:
+        return {**DEFAULT_WEIGHTS, **(self.weights or {})}
+
+
+def effective_thresholds(
+    contract: TaskContract, config: DetectorConfig | None = None
+) -> dict[str, int]:
+    """Contract thresholds with any config overrides applied; the contract is not changed."""
+    merged = {**DEFAULT_THRESHOLDS, **contract.thresholds}
+    if config is not None and config.thresholds:
+        merged.update(config.thresholds)
+    if not merged["warn"] < merged["pause"] < merged["kill"]:
+        raise ValueError("thresholds must increase from warn to kill")
+    return merged
+
+
+@dataclass(frozen=True)
 class DetectorFinding:
     reason_code: str
     score: int
@@ -70,23 +99,25 @@ def analyze_call(
     tools: ToolRegistry,
     history: list[AuditEvent],
     policy_reason_codes: tuple[str, ...],
+    config: DetectorConfig | None = None,
 ) -> list[DetectorFinding]:
-    findings = [_finding(reason) for reason in policy_reason_codes if reason in DEFAULT_WEIGHTS]
+    weights = DEFAULT_WEIGHTS if config is None else config.weight_map()
+    findings = [_finding(reason, weights) for reason in policy_reason_codes if reason in weights]
 
     if _honeytoken_touched(call, contract, tools):
-        findings.append(_finding("HONEYTOKEN_TOUCH"))
+        findings.append(_finding("HONEYTOKEN_TOUCH", weights))
 
     retry_evidence = _retry_after_denial(call, contract, tools, history)
     if retry_evidence:
-        findings.append(_finding("RETRY_AFTER_DENIAL", retry_evidence))
+        findings.append(_finding("RETRY_AFTER_DENIAL", weights, retry_evidence))
 
     enumeration_evidence = _enumeration(call, history)
     if enumeration_evidence:
-        findings.append(_finding("ENUMERATION", enumeration_evidence))
+        findings.append(_finding("ENUMERATION", weights, enumeration_evidence))
 
     read_send_evidence = _read_then_send(call, contract, history)
     if read_send_evidence:
-        findings.append(_finding("READ_THEN_SEND", read_send_evidence))
+        findings.append(_finding("READ_THEN_SEND", weights, read_send_evidence))
 
     return findings
 
@@ -104,10 +135,14 @@ def containment_for_score(score: int, thresholds: dict[str, int]) -> Containment
     return ContainmentState.OK
 
 
-def _finding(reason_code: str, evidence_event_ids: tuple[str, ...] = ()) -> DetectorFinding:
+def _finding(
+    reason_code: str,
+    weights: Mapping[str, int] = DEFAULT_WEIGHTS,
+    evidence_event_ids: tuple[str, ...] = (),
+) -> DetectorFinding:
     return DetectorFinding(
         reason_code=reason_code,
-        score=DEFAULT_WEIGHTS[reason_code],
+        score=weights[reason_code],
         evidence_event_ids=evidence_event_ids,
     )
 

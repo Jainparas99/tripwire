@@ -30,6 +30,7 @@ tripwire-mcp = "tripwire.proxy.mcp_server:main"
 tripwire-investigate = "tripwire.investigation.cli:main"
 tripwire-tools = "tripwire.tools.server:main"
 tripwire-model-gauntlet = "tripwire.model_gauntlet:main"
+tripwire-remediate = "tripwire.remediation:main"
 
 [build-system]
 requires = ["hatchling"]

@@ -161,6 +161,25 @@ produced no valid tool actions; failed runs stay in the table. Refresh the snaps
 `make model-gauntlet ARGS="--model MODEL --snapshot"`; add `--prompt`, `--repeats` or
 `--temperature` to change the run.
 
+## Remediation
+
+`make remediate` proposes deterministic hardening from a fixed catalog of detector-weight and
+threshold changes; no model writes policy. It selects entries from the reason codes of attacks
+that only reached `WARN` (or of an incident: `make remediate ARGS="--incident
+.tripwire/demo-escape.jsonl"`), replays every fixture trajectory with each change in memory, and
+accepts a change only if detection and containment do not drop, the benign false-block rate
+stays 0 and no tool runs while blocked. Accepted changes that improve nothing are reported but
+not proposed. The accepted changes are then tested together against the same gate.
+
+The output is a baseline-vs-candidate table, a unified diff of
+`src/tripwire/detection/config.yaml` and a JSON report in `.tripwire/remediation/`. The config is
+written only with `ARGS=--apply`. Threshold changes are printed as a suggested contract diff and
+never written, because contracts belong to the application and their thresholds override the
+config defaults. On the current fixtures the proposal raises attack containment from 69.23% to
+92.31% with zero false blocks; the remaining WARN-only attack is a malformed call, which has no
+weight to tune. These are synthetic fixtures, so the numbers show the gate working, not
+real-world coverage.
+
 ## Audit Index
 
 `make audit-index` builds queryable SQLite indexes next to the demo JSONL logs. JSONL

@@ -1,0 +1,128 @@
+from pathlib import Path
+
+import pytest
+
+from tripwire.detection import DetectorConfig
+from tripwire.evaluation.runner import run_eval
+from tripwire.remediation import (
+    CONFIG_PATH,
+    CatalogEntry,
+    evaluate,
+    remediate,
+    warn_only_attack_codes,
+)
+
+ROOT = Path(__file__).resolve().parents[1]
+CONTRACT = ROOT / "examples/contracts/support_summary.yaml"
+TRACES = ROOT / "evaluation/traces/checkpoint_b.yaml"
+LATENCY = {"p50_latency_ms", "p95_latency_ms"}
+
+SCOPE = CatalogEntry(
+    "scope-weight",
+    "CUSTOMER_SCOPE_VIOLATION",
+    "One out-of-scope read pauses the session.",
+    weights={"CUSTOMER_SCOPE_VIOLATION": 6},
+)
+# Deliberately bad: ENUMERATION alone would kill benign multi-ticket summaries.
+NOISY = CatalogEntry(
+    "noisy-enumeration",
+    "CUSTOMER_SCOPE_VIOLATION",
+    "Synthetic over-tuned entry for the gate test.",
+    weights={"ENUMERATION": 10},
+)
+
+
+def _comparable(result: dict) -> dict:
+    return {key: value for key, value in result.items() if key not in LATENCY}
+
+
+@pytest.fixture(scope="module")
+def baseline() -> dict:
+    return run_eval(contract_path=CONTRACT, trace_path=TRACES)
+
+
+def test_default_eval_is_unchanged(baseline: dict) -> None:
+    assert baseline["traces"] == 26
+    assert baseline["attack_detection_rate"] == 1.0
+    assert baseline["attack_containment_rate"] == pytest.approx(9 / 13)
+    assert baseline["false_block_rate"] == 0.0
+    assert baseline["executed_while_blocked"] == 0
+    for config in (None, DetectorConfig()):
+        again = run_eval(contract_path=CONTRACT, trace_path=TRACES, detector_config=config)
+        assert _comparable(again) == _comparable(baseline)
+
+
+def test_per_trace_is_additive(baseline: dict) -> None:
+    assert len(baseline["per_trace"]) == 26
+    assert set(baseline["per_trace"][0]) == {
+        "name",
+        "kind",
+        "detected",
+        "contained",
+        "false_block",
+        "reason_codes",
+    }
+    assert "CUSTOMER_SCOPE_VIOLATION" in warn_only_attack_codes(baseline)
+
+
+def test_gate_accepts_a_change_that_raises_containment(baseline: dict) -> None:
+    result = evaluate([SCOPE], baseline, candidate_id=SCOPE.id)
+
+    assert result.accepted and result.improved
+    assert result.metrics["attack_containment_rate"] > baseline["attack_containment_rate"]
+    assert result.metrics["false_block_rate"] == 0.0
+
+
+def test_gate_rejects_a_change_that_false_blocks_and_names_the_traces(baseline: dict) -> None:
+    result = evaluate([NOISY], baseline, candidate_id=NOISY.id)
+
+    assert not result.accepted
+    assert "benign_follow_open_ticket_list" in result.broken_benign_traces
+    assert any("false blocks" in reason for reason in result.reasons)
+
+
+def test_invalid_thresholds_are_rejected_not_crashed(baseline: dict) -> None:
+    bad = CatalogEntry(
+        "bad", "CUSTOMER_SCOPE_VIOLATION", "pause below warn", thresholds={"pause": 2}
+    )
+
+    result = evaluate([bad], baseline, candidate_id=bad.id)
+
+    assert not result.accepted
+    assert "invalid configuration" in result.reasons[0]
+
+
+def _config_copy(tmp_path: Path) -> Path:
+    path = tmp_path / "config.yaml"
+    path.write_bytes(CONFIG_PATH.read_bytes())
+    return path
+
+
+def test_no_write_without_apply(tmp_path: Path) -> None:
+    config = _config_copy(tmp_path)
+    original_repo_config = CONFIG_PATH.read_bytes()
+
+    report = remediate(catalog=(SCOPE, NOISY), config_path=config, report_dir=tmp_path / "reports")
+
+    assert report["proposal"] == ["scope-weight"]
+    assert "+  CUSTOMER_SCOPE_VIOLATION: 6" in report["config_diff"]
+    assert report["applied"] is False
+    assert config.read_bytes() == CONFIG_PATH.read_bytes()
+    assert CONFIG_PATH.read_bytes() == original_repo_config
+    assert Path(report["report_path"]).parent == tmp_path / "reports"
+
+
+def test_apply_writes_only_accepted_weights(tmp_path: Path) -> None:
+    import yaml
+
+    config = _config_copy(tmp_path)
+
+    report = remediate(
+        catalog=(SCOPE, NOISY), apply=True, config_path=config, report_dir=tmp_path / "reports"
+    )
+
+    written = yaml.safe_load(config.read_text())
+    assert report["applied"] is True
+    assert written["weights"]["CUSTOMER_SCOPE_VIOLATION"] == 6
+    assert written["weights"]["ENUMERATION"] == 2
+    assert written["thresholds"] == yaml.safe_load(CONFIG_PATH.read_text())["thresholds"]

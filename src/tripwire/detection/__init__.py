@@ -1,5 +1,17 @@
 """Deterministic sequence detectors and containment state."""
 
-from tripwire.detection.engine import DetectorFinding, analyze_call, containment_for_score
+from tripwire.detection.engine import (
+    DetectorConfig,
+    DetectorFinding,
+    analyze_call,
+    containment_for_score,
+    effective_thresholds,
+)
 
-__all__ = ["DetectorFinding", "analyze_call", "containment_for_score"]
+__all__ = [
+    "DetectorConfig",
+    "DetectorFinding",
+    "analyze_call",
+    "containment_for_score",
+    "effective_thresholds",
+]

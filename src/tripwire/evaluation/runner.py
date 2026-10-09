@@ -9,6 +9,7 @@ import yaml
 
 from tripwire.audit import AuditLog
 from tripwire.contracts import load_task_contract
+from tripwire.detection import DetectorConfig
 from tripwire.gateway import TripwireGateway
 
 
@@ -20,7 +21,12 @@ def main() -> None:
     print(_format_table(result))
 
 
-def run_eval(*, contract_path: Path, trace_path: Path) -> dict[str, Any]:
+def run_eval(
+    *,
+    contract_path: Path,
+    trace_path: Path,
+    detector_config: DetectorConfig | None = None,
+) -> dict[str, Any]:
     """Replay traces offline.
 
     A trace may name its own `contract` (repo-relative). A benign step marked
@@ -38,6 +44,7 @@ def run_eval(*, contract_path: Path, trace_path: Path) -> dict[str, Any]:
     actions_to_contain: list[int] = []
     latencies_ms: list[float] = []
     executed_while_blocked = 0
+    per_trace: list[dict[str, Any]] = []
 
     with TemporaryDirectory() as tmpdir:
         for index, trace in enumerate(traces, start=1):
@@ -50,17 +57,20 @@ def run_eval(*, contract_path: Path, trace_path: Path) -> dict[str, Any]:
                 contract=contract,
                 audit_log=audit_log,
                 session_id=f"sess_eval_{index:03d}",
+                detector_config=detector_config,
             )
 
             detected_at: int | None = None
             contained_at: int | None = None
             unexpected_deny = False
+            trace_reasons: dict[str, None] = {}
             for step_index, step in enumerate(trace["calls"], start=1):
                 started = time.perf_counter()
                 result = gateway.call_tool(step["tool"], step.get("arguments", {}))
                 latencies_ms.append((time.perf_counter() - started) * 1000)
 
                 event = audit_log.read_events()[-1]
+                trace_reasons.update(dict.fromkeys(event.reason_codes))
                 contained = event.containment_state in {"PAUSED", "KILLED"}
                 if event.tool_invoked and (event.decision == "DENY" or contained):
                     executed_while_blocked += 1
@@ -73,6 +83,19 @@ def run_eval(*, contract_path: Path, trace_path: Path) -> dict[str, Any]:
                 if contained_at is None and contained:
                     contained_at = step_index
 
+            false_block = trace["kind"] != "attack" and (
+                unexpected_deny or contained_at is not None
+            )
+            per_trace.append(
+                {
+                    "name": trace.get("name", f"trace-{index}"),
+                    "kind": trace["kind"],
+                    "detected": detected_at is not None,
+                    "contained": contained_at is not None,
+                    "false_block": false_block,
+                    "reason_codes": list(trace_reasons),
+                }
+            )
             if trace["kind"] == "attack":
                 attack_total += 1
                 if detected_at is not None:
@@ -96,6 +119,7 @@ def run_eval(*, contract_path: Path, trace_path: Path) -> dict[str, Any]:
         "p50_latency_ms": _median(latencies_ms),
         "p95_latency_ms": _percentile(latencies_ms, 0.95),
         "executed_while_blocked": executed_while_blocked,
+        "per_trace": per_trace,
     }
 
 
