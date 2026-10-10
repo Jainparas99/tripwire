@@ -27,6 +27,7 @@ HOLDOUT_FILE = ROOT / "evaluation/traces/generated_redteam.yaml"
 GAUNTLET_SNAPSHOT = ROOT / "evaluation/gauntlet_results.json"
 REDTEAM_SNAPSHOT = ROOT / "evaluation/redteam_results.json"
 CONTRACT_FILE = ROOT / "examples/contracts/support_summary.yaml"
+THEME_CSS = Path(__file__).with_name("theme.css")
 
 STATE_CLASS = {"OK": "ok", "WARN": "warn", "PAUSED": "paused", "KILLED": "killed"}
 STATE_RANK = {"OK": 0, "WARN": 1, "PAUSED": 2, "KILLED": 3}
@@ -58,14 +59,9 @@ def main() -> None:
     st.set_page_config(page_title="Tripwire control plane", page_icon="◈", layout="wide")
     _inject_styles()
 
-    st.markdown('<div class="tw-eyebrow">TRIPWIRE / CONTROL PLANE</div>', unsafe_allow_html=True)
-    st.title("Containment, in one clear flow")
-    st.caption(
-        "Deterministic task-contract enforcement for agent tool calls. "
-        "Synthetic fixtures and local evaluation artifacts are shown read-only."
-    )
-
     logs = _audit_logs() or _bootstrap_demo_logs()
+    _sidebar_brand()
+    _hero(logs)
     _header_strip(logs)
 
     live, incident, gauntlet, remediation, redteam, fleet, sponsors = st.tabs(
@@ -98,62 +94,58 @@ def main() -> None:
 # ---------------------------------------------------------------- styling
 
 
+LOGO_SVG = (
+    '<svg viewBox="0 0 32 32" width="38" height="38" aria-hidden="true">'
+    '<defs><linearGradient id="twg" x1="0" y1="0" x2="1" y2="1">'
+    '<stop offset="0" stop-color="#4a86f0"/><stop offset="1" stop-color="#9174f0"/>'
+    "</linearGradient></defs>"
+    '<path d="M16 2 4 7v8c0 7.2 5.1 13.3 12 15 6.9-1.7 12-7.8 12-15V7z" fill="url(#twg)"/>'
+    '<path d="M9 16h4l2-4 3 8 2-4h3" fill="none" stroke="#0b1220" stroke-width="2.2" '
+    'stroke-linecap="round" stroke-linejoin="round"/></svg>'
+)
+
+THEMES = {
+    "dark": {
+        "ink": "#e6edf6",
+        "muted": "#93a3b8",
+        "line": "#22314a",
+        "panel": "#111a2b",
+        "panel2": "#0e1626",
+        "bg": "#0b1220",
+        "accent": "#4a86f0",
+        "shadow": "0 10px 30px rgba(0, 0, 0, .28)",
+        "status": STATUS_DARK,
+    },
+    "light": {
+        "ink": "#17212b",
+        "muted": "#5e6b78",
+        "line": "#dbe3ea",
+        "panel": "#ffffff",
+        "panel2": "#f4f7fb",
+        "bg": "#f7f9fc",
+        "accent": SERIES_COLOR,
+        "shadow": "0 8px 24px rgba(23, 33, 43, .08)",
+        "status": STATUS_LIGHT,
+    },
+}
+
+
+def _theme_name() -> str:
+    try:
+        return "light" if st.context.theme.type == "light" else "dark"
+    except Exception:
+        return "dark"
+
+
 def _inject_styles() -> None:
-    light = "".join(f"--tw-{k.lower()}: {v};" for k, v in STATUS_LIGHT.items())
-    dark = "".join(f"--tw-{k.lower()}: {v};" for k, v in STATUS_DARK.items())
-    st.markdown(
-        f"""
-        <style>
-        :root {{
-          --tw-ink: #17212b; --tw-muted: #5e6b78; --tw-line: #dbe3ea; --tw-panel: #f7f9fb;
-          --tw-accent: {SERIES_COLOR}; {light}
-        }}
-        @media (prefers-color-scheme: dark) {{
-          :root {{ --tw-ink: #eef4f8; --tw-muted: #aebdca; --tw-line: #334451;
-                   --tw-panel: #18232c; {dark} }}
-        }}
-        .tw-eyebrow {{ color: var(--tw-accent); font-size: .72rem; font-weight: 800;
-          letter-spacing: .14em; margin: .25rem 0 .45rem; }}
-        .tw-strip-label {{ color: var(--tw-muted); font-size: .75rem; font-weight: 700;
-          letter-spacing: .08em; text-transform: uppercase; margin: .3rem 0 .5rem; }}
-        .tw-kpis {{ display: grid; grid-template-columns: repeat(auto-fit, minmax(170px, 1fr));
-          gap: .6rem; margin: .2rem 0 .8rem; }}
-        .tw-kpi {{ background: var(--tw-panel); border: 1px solid var(--tw-line);
-          border-left: 4px solid var(--tw-kpi, var(--tw-line)); border-radius: 10px;
-          padding: .6rem .85rem; }}
-        .tw-kpi-label {{ color: var(--tw-muted); font-size: .74rem; font-weight: 700;
-          text-transform: uppercase; letter-spacing: .06em; }}
-        .tw-kpi-value {{ color: var(--tw-ink); font-size: 1.45rem; font-weight: 800; }}
-        .tw-kpi-note {{ color: var(--tw-muted); font-size: .76rem; }}
-        .badge {{ border: 1px solid currentColor; border-radius: 999px; display: inline-flex;
-          align-items: center; gap: .3rem; font-size: .74rem; font-weight: 800; line-height: 1;
-          padding: .26rem .5rem; white-space: nowrap; }}
-        .tone-ok {{ color: var(--tw-ok); }} .tone-warn {{ color: var(--tw-warn); }}
-        .tone-paused {{ color: var(--tw-paused); }} .tone-killed {{ color: var(--tw-killed); }}
-        .tone-unknown {{ color: var(--tw-muted); }} .tone-accent {{ color: var(--tw-accent); }}
-        .tw-card {{ background: var(--tw-panel); border: 1px solid var(--tw-line);
-          border-left: 4px solid var(--tw-card, var(--tw-line)); border-radius: 12px;
-          padding: .7rem .95rem; margin: .3rem 0 .6rem; }}
-        .tw-card-title {{ color: var(--tw-ink); font-weight: 750; margin-bottom: .25rem; }}
-        .tw-muted {{ color: var(--tw-muted); }}
-        .tw-small {{ color: var(--tw-muted); font-size: .82rem; }}
-        .tw-chips {{ display: flex; flex-wrap: wrap; gap: .35rem; align-items: center; }}
-        .tw-arrow {{ color: var(--tw-muted); }}
-        .tw-table {{ border-collapse: collapse; width: 100%; font-size: .86rem; }}
-        .tw-table th {{ color: var(--tw-muted); font-size: .72rem; text-transform: uppercase;
-          letter-spacing: .06em; text-align: left; border-bottom: 1px solid var(--tw-line);
-          padding: .45rem .5rem; }}
-        .tw-table td {{ border-bottom: 1px solid var(--tw-line); padding: .45rem .5rem;
-          color: var(--tw-ink); vertical-align: top; }}
-        .tw-table td.num {{ font-variant-numeric: tabular-nums; }}
-        .tw-section {{ color: var(--tw-muted); font-size: .76rem; font-weight: 800;
-          text-transform: uppercase; letter-spacing: .08em; margin: .9rem 0 .35rem; }}
-        .tw-callout {{ border: 1px dashed var(--tw-line); border-radius: 10px;
-          padding: .6rem .85rem; margin: .4rem 0 .8rem; }}
-        </style>
-        """,
-        unsafe_allow_html=True,
+    theme = THEMES[_theme_name()]
+    tokens = "".join(
+        f"--tw-{name}: {theme[name]};"
+        for name in ("ink", "muted", "line", "panel", "panel2", "bg", "accent", "shadow")
     )
+    status = "".join(f"--tw-{key.lower()}: {value};" for key, value in theme["status"].items())
+    css = THEME_CSS.read_text(encoding="utf-8")
+    st.markdown(f"<style>:root {{ {tokens} {status} }}\n{css}</style>", unsafe_allow_html=True)
 
 
 def _badge(label: str, tone: str, icon: str = "") -> str:
@@ -214,6 +206,49 @@ def _section(title: str) -> None:
 
 
 # ---------------------------------------------------------------- header
+
+
+def _hero(logs: list[Path]) -> None:
+    executed = sum(_executed_while_blocked(event) for path in logs for event in _read_events(path))
+    status = (
+        '<span class="tw-live">Enforcing · nothing ran while blocked</span>'
+        if executed == 0
+        else '<span class="tw-live" style="--tw-ok: var(--tw-killed)">'
+        f"{executed} ran while blocked</span>"
+    )
+    pills = "".join(
+        f'<span class="tw-pill">{html.escape(text)}</span>'
+        for text in (
+            "◆ Deterministic, no LLM in the allow/deny path",
+            "⛓ Hash-chained audit log",
+            "⏻ Fail-closed",
+            "✈ Works offline",
+        )
+    )
+    st.markdown(
+        f'<div class="tw-hero"><div class="tw-hero-top">{LOGO_SVG}'
+        f'<div class="tw-brand">TRIPWIRE · CONTROL PLANE</div>{status}</div>'
+        "<h1>Containment, in one clear flow</h1>"
+        "<p>Every agent tool call is checked against a trusted task contract. Suspicious "
+        "sequences escalate the session from WARN to PAUSED to KILLED, and every decision is "
+        "written to a tamper-evident log. Synthetic fixtures; read-only view.</p>"
+        f"<div>{pills}</div></div>",
+        unsafe_allow_html=True,
+    )
+
+
+def _sidebar_brand() -> None:
+    st.sidebar.markdown(
+        f'<div class="tw-side-brand">{LOGO_SVG}<div><b>Tripwire</b>'
+        "<span>Runtime security for AI agents</span></div></div>",
+        unsafe_allow_html=True,
+    )
+    st.sidebar.markdown(
+        '<div class="tw-side-note"><b>How to read it.</b> Pick a session below. Green is '
+        "allowed, amber is a warning, violet is paused, red is killed. A paused or killed "
+        "session is denied every later call.</div>",
+        unsafe_allow_html=True,
+    )
 
 
 def _header_strip(logs: list[Path]) -> None:
@@ -371,9 +406,11 @@ def _score_chart(events: list[AuditEvent], step: int) -> None:
         for index, event in enumerate(events, start=1)
     ]
     thresholds = _thresholds()
+    theme = THEMES[_theme_name()]
+    palette = theme["status"]
     top = max(thresholds["kill"] + 2, *(row["score"] for row in rows))
-    states = list(STATUS_LIGHT)
-    state_scale = alt.Scale(domain=states, range=[STATUS_LIGHT[state] for state in states])
+    states = list(palette)
+    state_scale = alt.Scale(domain=states, range=[palette[state] for state in states])
     base = alt.Chart(alt.Data(values=rows)).encode(
         x=alt.X("event:Q", title="Event", axis=alt.Axis(tickMinStep=1, grid=False)),
         y=alt.Y(
@@ -384,9 +421,9 @@ def _score_chart(events: list[AuditEvent], step: int) -> None:
         ),
     )
     line = base.transform_filter("datum.shown").mark_line(
-        color=SERIES_COLOR, strokeWidth=2, interpolate="step-after"
+        color=theme["accent"], strokeWidth=2, interpolate="step-after"
     )
-    points = base.mark_point(filled=True, size=150, stroke="white", strokeWidth=2).encode(
+    points = base.mark_point(filled=True, size=150, stroke=theme["bg"], strokeWidth=2).encode(
         color=alt.Color(
             "state:N",
             title="State",
@@ -397,7 +434,12 @@ def _score_chart(events: list[AuditEvent], step: int) -> None:
             "decision:N",
             title="Decision",
             scale=alt.Scale(domain=["ALLOW", "DENY"], range=["circle", "diamond"]),
-            legend=alt.Legend(orient="top", direction="horizontal"),
+            legend=alt.Legend(
+                orient="top",
+                direction="horizontal",
+                symbolFillColor=theme["muted"],
+                symbolStrokeColor=theme["muted"],
+            ),
         ),
         opacity=alt.condition("datum.shown", alt.value(1.0), alt.value(0.15)),
         tooltip=[
@@ -421,14 +463,14 @@ def _score_chart(events: list[AuditEvent], step: int) -> None:
     # points' State legend.
     rules = [
         alt.Chart(alt.Data(values=[row]))
-        .mark_rule(strokeDash=[4, 4], strokeWidth=1.5, color=STATUS_LIGHT[row["state"]])
+        .mark_rule(strokeDash=[4, 4], strokeWidth=1.5, color=palette[row["state"]])
         .encode(y="value:Q")
         for row in rule_rows
     ]
     labels = (
         alt.Chart(alt.Data(values=rule_rows))
         .mark_text(align="left", dx=4, dy=-6, fontSize=11, fontWeight="bold")
-        .encode(y="value:Q", x=alt.value(0), text="label:N", color=alt.value("#5e6b78"))
+        .encode(y="value:Q", x=alt.value(0), text="label:N", color=alt.value(theme["muted"]))
     )
     st.altair_chart(
         alt.layer(*rules, labels, line, points).properties(height=280),
@@ -1157,13 +1199,10 @@ def _sponsors_tab() -> None:
             path = finding.get("path", "unknown")
             line = finding.get("start", {}).get("line", "?")
             check = finding.get("check_id", "rule")
-            st.warning(
-                f"{check} · {path}:{line} · {finding.get('extra', {}).get('message', '')}"
-            )
+            st.warning(f"{check} · {path}:{line} · {finding.get('extra', {}).get('message', '')}")
     elif scan.get("status") == "not installed":
         st.info(
-            "Semgrep is not installed in this runtime. "
-            "Run: `semgrep scan --config semgrep.yml src`"
+            "Semgrep is not installed in this runtime. Run: `semgrep scan --config semgrep.yml src`"
         )
     else:
         st.warning(f"Semgrep scan unavailable: {scan.get('errors', 'unknown error')}")

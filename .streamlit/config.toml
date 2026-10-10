@@ -1,3 +1,8 @@
-# Red means KILLED on this dashboard, so Streamlit's accent (slider, radio, pills) is blue.
+# Dark security-console theme. Red means KILLED on this dashboard, so the accent is blue.
 [theme]
-primaryColor = "#3a74e0"
+base = "dark"
+primaryColor = "#4a86f0"
+backgroundColor = "#0b1220"
+secondaryBackgroundColor = "#111a2b"
+textColor = "#e6edf6"
+font = "sans serif"
