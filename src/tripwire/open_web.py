@@ -18,6 +18,8 @@ REPO_ROOT = Path(__file__).resolve().parents[2]
 CONTRACT_FILE = REPO_ROOT / "examples/contracts/threat_watch.yaml"
 LOG_FILE = REPO_ROOT / ".tripwire/open-web-watch.jsonl"
 ALERT_FILE = REPO_ROOT / ".tripwire/open-web-alert.json"
+# What the agent puts in the tool call and the audit log: repo-relative, never a home path.
+ALERT_ARG = ".tripwire/open-web-alert.json"
 CISA_KEV_URL = "https://www.cisa.gov/sites/default/files/feeds/known_exploited_vulnerabilities.json"
 
 
@@ -40,8 +42,7 @@ class OpenWebToolRegistry:
         if call.tool == "fetch_cisa_kev" and call.arguments.get("url") != CISA_KEV_URL:
             return "WEB_SOURCE_NOT_ALLOWED"
         if call.tool == "publish_alert":
-            path = Path(str(call.arguments.get("path", ""))).resolve()
-            if path != self.alert_path:
+            if _resolve(str(call.arguments.get("path", ""))) != self.alert_path:
                 return "PUBLISH_PATH_NOT_ALLOWED"
             if not isinstance(call.arguments.get("content"), str):
                 return "MALFORMED_ARGUMENTS"
@@ -70,7 +71,7 @@ class OpenWebToolRegistry:
         content = str(call.arguments["content"])
         self.alert_path.parent.mkdir(parents=True, exist_ok=True)
         self.alert_path.write_text(content, encoding="utf-8")
-        return {"path": str(self.alert_path), "bytes": len(content.encode("utf-8"))}
+        return {"path": _display(self.alert_path), "bytes": len(content.encode("utf-8"))}
 
 
 def run_monitor(*, limit: int = 5) -> dict[str, Any]:
@@ -108,11 +109,24 @@ def run_monitor(*, limit: int = 5) -> dict[str, Any]:
     }
     published = gateway.call_tool(
         "publish_alert",
-        {"path": str(ALERT_FILE.resolve()), "content": json.dumps(alert, indent=2)},
+        {"path": ALERT_ARG, "content": json.dumps(alert, indent=2)},
     )
     if published.data is None:
         raise RuntimeError(f"Alert publication blocked: {published.decision.reason_codes}")
     return {"fetch": fetched, "publish": published, "alert": alert}
+
+
+def _resolve(path: str) -> Path:
+    """Relative paths are relative to the repo root, not the current directory."""
+    candidate = Path(path)
+    return (candidate if candidate.is_absolute() else REPO_ROOT / candidate).resolve()
+
+
+def _display(path: Path) -> str:
+    try:
+        return str(path.resolve().relative_to(REPO_ROOT))
+    except ValueError:
+        return path.name
 
 
 def _https_context() -> ssl.SSLContext:
@@ -131,8 +145,9 @@ def main() -> None:
     args = parser.parse_args()
     result = run_monitor(limit=max(1, min(args.limit, 20)))
     print(f"Fetched live CISA KEV feed: {result['alert']['totalVulnerabilities']} vulnerabilities")
-    print(f"Published {len(result['alert']['vulnerabilities'])} prioritized alerts to {ALERT_FILE}")
-    print(f"Audit trail: {LOG_FILE}")
+    count = len(result["alert"]["vulnerabilities"])
+    print(f"Published {count} prioritized alerts to {_display(ALERT_FILE)}")
+    print(f"Audit trail: {_display(LOG_FILE)}")
     for event in AuditLog(LOG_FILE).read_events():
         print(
             f"  {event.event_id} {event.attempted.tool} {event.decision} "

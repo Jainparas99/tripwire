@@ -1305,9 +1305,15 @@ def _percent(value: Any) -> str:
         return str(value)
 
 
-def _arguments(event: AuditEvent) -> str:
-    args = ", ".join(f"{key}={value}" for key, value in event.attempted.arguments.items())
-    return html.escape(args or "no arguments")
+def _arguments(event: AuditEvent, limit: int = 80) -> str:
+    """Display only: long values are shortened; the audit log keeps them in full."""
+    parts = []
+    for key, value in event.attempted.arguments.items():
+        text = str(value)
+        if len(text) > limit:
+            text = f"{text[:limit].rstrip()}… ({len(str(value)):,} chars)"
+        parts.append(f"{key}={text}")
+    return html.escape(", ".join(parts) or "no arguments")
 
 
 if __name__ == "__main__":
