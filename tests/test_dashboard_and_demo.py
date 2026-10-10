@@ -95,3 +95,26 @@ def test_dashboard_demo_fixes(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -
     assert "did not encounter the injection (made no tool calls)" in notes
 
     assert app.selectbox(key="report_session").value.stem == "demo-escape"
+
+
+def test_chart_failure_does_not_take_down_the_dashboard(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    import altair
+
+    streamlit_testing = pytest.importorskip("streamlit.testing.v1")
+    for name in load_scenarios():
+        replay_scenario(name, output_dir=tmp_path)
+    monkeypatch.setenv("TRIPWIRE_LOG_DIR", str(tmp_path))
+
+    def broken_scale(*_args, **_kwargs):  # the Streamlit Cloud failure, simulated
+        raise AttributeError("module 'pandas' has no attribute 'Timestamp'")
+
+    monkeypatch.setattr(altair, "Scale", broken_scale)
+
+    app = streamlit_testing.AppTest.from_file(str(DASHBOARD), default_timeout=30).run()
+
+    assert not app.exception
+    assert any("score chart could not be drawn" in item.value for item in app.info)
+    metrics = {metric.label: metric.value for metric in app.metric}
+    assert metrics["Ran while blocked"] == "0"

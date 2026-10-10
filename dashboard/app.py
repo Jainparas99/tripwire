@@ -8,6 +8,12 @@ from pathlib import Path
 from typing import Any
 
 import altair as alt
+
+# Import pandas completely before Altair serializes a chart. Altair checks
+# sys.modules["pandas"] without the import lock, so on a cold start (Streamlit Cloud) another
+# thread's half-finished pandas import made it fail with "module 'pandas' has no attribute
+# 'Timestamp'". A normal import waits for the lock, so pandas is whole by the time we chart.
+import pandas  # noqa: F401
 import streamlit as st
 
 from tripwire.audit import AuditEvent, AuditLog
@@ -343,7 +349,10 @@ def _live_containment(logs: list[Path]) -> None:
 
     chart_col, side = st.columns([3, 2], gap="large")
     with chart_col:
-        _score_chart(events, step)
+        try:
+            _score_chart(events, step)
+        except Exception:  # a chart problem must never take the whole dashboard down
+            st.info("The score chart could not be drawn here; the timeline below has every event.")
     with side:
         _blocked_panel(shown)
 
@@ -474,7 +483,7 @@ def _score_chart(events: list[AuditEvent], step: int) -> None:
     )
     st.altair_chart(
         alt.layer(*rules, labels, line, points).properties(height=280),
-        use_container_width=True,
+        width="stretch",
     )
     st.caption(
         "Dashed lines are the contract thresholds. Hover a point for its event; "
