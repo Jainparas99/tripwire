@@ -286,7 +286,7 @@ def _header_strip(logs: list[Path]) -> None:
     st.markdown(
         '<div class="tw-small">State key: '
         + " ".join(_state_badge(state) for state in STATE_RANK)
-        + " — every color is paired with a text label and an icon.</div>",
+        + "</div>",
         unsafe_allow_html=True,
     )
 
